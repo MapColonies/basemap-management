@@ -1,5 +1,6 @@
 import express, { json, Router } from 'express';
 import compression from 'compression';
+import { memoryStorage } from 'multer';
 import { OpenapiViewerRouter } from '@map-colonies/openapi-express-viewer';
 import { getErrorHandlerMiddleware } from '@map-colonies/error-express-handler';
 import { middleware as OpenApiMiddleware } from 'express-openapi-validator';
@@ -10,8 +11,10 @@ import { collectMetricsExpressMiddleware } from '@map-colonies/prometheus';
 import { Registry } from 'prom-client';
 import type { ConfigType } from '@common/config';
 import { SERVICES } from '@common/constants';
-import { RESOURCE_NAME_ROUTER_SYMBOL } from './resourceName/routes/resourceNameRouter';
-import { ANOTHER_RESOURCE_ROUTER_SYMBOL } from './anotherResource/routes/anotherResourceRouter';
+import type { IBasemapManagementEnv } from '@common/env';
+import { BASEMAPS_ROUTER_SYMBOL } from './basemaps/routes/basemapsRouter';
+
+const BASEMAPS_BASE_PATH = '/basemaps';
 
 @injectable()
 export class ServerBuilder {
@@ -21,8 +24,8 @@ export class ServerBuilder {
     @inject(SERVICES.CONFIG) private readonly config: ConfigType,
     @inject(SERVICES.LOGGER) private readonly logger: Logger,
     @inject(SERVICES.METRICS) private readonly metricsRegistry: Registry,
-    @inject(RESOURCE_NAME_ROUTER_SYMBOL) private readonly resourceNameRouter: Router,
-    @inject(ANOTHER_RESOURCE_ROUTER_SYMBOL) private readonly anotherResourceRouter: Router
+    @inject(SERVICES.BASEMAP_MANAGEMENT_ENV) private readonly basemapManagementEnv: IBasemapManagementEnv,
+    @inject(BASEMAPS_ROUTER_SYMBOL) private readonly basemapsRouter: Router
   ) {
     this.serverInstance = express();
   }
@@ -45,8 +48,7 @@ export class ServerBuilder {
   }
 
   private buildRoutes(): void {
-    this.serverInstance.use('/resourceName', this.resourceNameRouter);
-    this.serverInstance.use('/anotherResource', this.anotherResourceRouter);
+    this.serverInstance.use(BASEMAPS_BASE_PATH, this.basemapsRouter);
     this.buildDocsRoutes();
   }
 
@@ -62,7 +64,17 @@ export class ServerBuilder {
 
     const ignorePathRegex = new RegExp(`^${this.config.get('openapiConfig.basePath')}/.*`, 'i');
     const apiSpecPath = this.config.get('openapiConfig.filePath');
-    this.serverInstance.use(OpenApiMiddleware({ apiSpec: apiSpecPath, validateRequests: true, ignorePaths: ignorePathRegex }));
+    const { uploadLimits } = this.basemapManagementEnv;
+    const multipartSizeLimitBytes = Math.max(uploadLimits.thumbnailMaxSizeBytes, uploadLimits.importPackageMaxSizeBytes);
+
+    this.serverInstance.use(
+      OpenApiMiddleware({
+        apiSpec: apiSpecPath,
+        validateRequests: true,
+        ignorePaths: ignorePathRegex,
+        fileUploader: { storage: memoryStorage(), limits: { fileSize: multipartSizeLimitBytes } },
+      })
+    );
   }
 
   private registerPostRoutesMiddleware(): void {

@@ -1,39 +1,36 @@
-{{- $server := .Values.server -}}
-{{- $telemetry := .Values.telemetry -}}
-{{- $tracingUrl := include "ts-server-boilerplate.tracingUrl" . -}}
-{{- $opentelemetryLoggingUrl := include "ts-server-boilerplate.opentelemetryLoggingUrl" . -}}
-{{- if .Values.enabled -}}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "ts-server-boilerplate.fullname" . }}
-data:
-  {{- with $server }}
-  REQUEST_PAYLOAD_LIMIT: {{ .requestPayloadLimit | quote }}
-  RESPONSE_COMPRESSION_ENABLED: {{ .responseCompressionEnabled | quote }}
-  {{- end }}
-  {{- with $telemetry }}
-  LOG_LEVEL: {{ .logger.level | quote }}
-  LOG_PRETTY_PRINT_ENABLED: {{ .logger.prettyPrint | quote }}
-  {{- with .logger.opentelemetryOptions }}
-  {{- if .enabled }}
-  OPENTELEMETRY_LOGGING_ENABLED: 'true'
-  OTLP_LOGGER_ENDPOINT_URL: {{ $opentelemetryLoggingUrl | quote }}
-  {{- if .resourceAttributes }}
-  OTEL_RESOURCE_ATTRIBUTES: {{ include "ts-server-boilerplate.otelResourceAttributes" .resourceAttributes | quote }}
-  {{- end }}
-  {{- end }}
-  {{- end }}
-  {{- if .tracing.enabled }}
-  TELEMETRY_TRACING_ENABLED: 'true'
-  TELEMETRY_TRACING_URL: {{ $tracingUrl | quote }}
-  {{- end }}
-  {{- end }}
-  npm_config_cache: /tmp/
+{{- $MAIN_OBJECT_BLOCK := "configValues" -}}
+{{- $COMPONENT_NAME := "backend" -}}
+{{- $DATA := include "basemapManagementData" . -}}
+
+{{- define "basemapManagementData" -}}
+{{- $CONFIG_MANAGER_OBJECT := include "common.tplvalues.getGlobalObject" (dict "objName" "configManagment" "context" .) | fromYaml }}
+{{- if not $CONFIG_MANAGER_OBJECT.enabled -}}
+  REQUEST_PAYLOAD_LIMIT: {{ .Values.env.requestPayloadLimit | quote }}
+  RESPONSE_COMPRESSION_ENABLED: {{ .Values.env.responseCompressionEnabled | quote }}
+{{- end }}
+  CONFIG_MANAGEMENT_URL: {{ $CONFIG_MANAGER_OBJECT.url | quote }}
   {{- with .Values.configManagement }}
   CONFIG_NAME: {{ .name | quote }}
   CONFIG_VERSION: {{ .version | quote }}
   CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
   CONFIG_SERVER_URL: {{ .serverUrl | quote }}
+  {{- end }}
+  {{- with .Values.telemetry.logger.opentelemetryOptions }}
+  OPENTELEMETRY_LOGGING_ENABLED: {{ .enabled | quote }}
+  {{- if .enabled }}
+  OTLP_LOGGER_ENDPOINT_URL: {{ .url | quote }}
+  {{- end }}
+  {{- end }}
+  {{- with .Values.basemapManagement }}
+  CONFIG_BASEMAPS_NAME: {{ .configServer.name | quote }}
+  CONFIG_BASEMAPS_SCHEMA_ID: {{ .configServer.schemaId | quote }}
+  DATA_SERVICE_URL: {{ .dataServiceUrl | quote }}
+  RASTER_CATALOG_URL: {{ .rasterCatalogUrl | quote }}
+  RASTER_CATALOG_MODE: {{ .rasterCatalogMode | quote }}
+  {{/* `quote` on a bare numeric value renders large numbers in scientific notation (e.g. "2.097152e+06") - `int64` first keeps it a plain integer string. */}}
+  THUMBNAIL_MAX_SIZE_BYTES: {{ .uploadLimits.thumbnailMaxSizeBytes | int64 | quote }}
+  IMPORT_PACKAGE_MAX_SIZE_BYTES: {{ .uploadLimits.importPackageMaxSizeBytes | int64 | quote }}
   {{- end -}}
-{{- end }}
+{{- end -}}
+
+{{ include "mc-chart.configmap" (dict "MAIN_OBJECT_BLOCK" $MAIN_OBJECT_BLOCK "COMPONENT_NAME" $COMPONENT_NAME "DATA" $DATA "WITH_TELEMETRY_TRACING" true "WITH_TELEMETRY_METRICS" false "context" .)}}
