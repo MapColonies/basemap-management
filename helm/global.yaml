@@ -1,0 +1,17 @@
+global:
+  configManagment:
+    enabled: true
+    url: <CONFIG_MANAGEMENT_URL>
+  imageRegistry: acrarolibotnonprod.azurecr.io
+  imagePullSecrets:
+    - my-registry
+  deploymentFlavor: openshift
+  tracing:
+    enabled: false
+    url: http://localhost:55681/v1/traces
+  metrics:
+    enabled: false
+    url: http://localhost:55681/v1/metrics
+  environment: development
+  releaseVersion: DUMMY_releaseVersion
+  currentSubChart: DUMMY_currentSubChart
