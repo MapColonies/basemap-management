@@ -1,7 +1,8 @@
-import type { ProductType } from '@map-colonies/types';
+import type { Domain, LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
+import type { IRasterUniqueness } from '@src/basemaps/models/types';
 
 export interface IRasterCatalogClient {
-  resolve: (productId: string, productType: ProductType) => Promise<unknown>;
+  resolveLayer: (domain: Domain.RASTER, uniqueness: IRasterUniqueness) => Promise<LayerRasterRecordModelType | null>;
 }
 
 export const RASTER_CATALOG_CLIENT = Symbol('RasterCatalogClient');

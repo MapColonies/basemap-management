@@ -13,6 +13,8 @@ import { BLOB_STORAGE_CLIENT } from '@src/clients/blobStorage/blobStorageClient'
 import { StubBlobStorageClient } from '@src/clients/blobStorage/stubBlobStorageClient';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { StubRasterCatalogClient } from '@src/clients/rasterCatalog/stubRasterCatalogClient';
+import { MAP_SERVER_CAPABILITIES_CLIENT } from '@src/clients/mapServer/mapServerCapabilitiesClient';
+import { HttpMapServerCapabilitiesClient } from '@src/clients/mapServer/httpMapServerCapabilitiesClient';
 import { basemapsRouterFactory, BASEMAPS_ROUTER_SYMBOL } from './basemaps/routes/basemapsRouter';
 import { getConfig } from './common/config';
 
@@ -21,12 +23,6 @@ interface RegisterOptions {
   useChild?: boolean;
 }
 
-/**
- * Only `'stub'` is implemented (A.6/A.12): there is no confirmed Raster pycsw Catalog HTTP contract to
- * build a real adapter against yet. Failing fast on any other `RASTER_CATALOG_MODE` is deliberate -
- * silently falling back to the stub would hide a misconfiguration that the operator explicitly asked
- * to avoid by setting the env var in the first place.
- */
 function rasterCatalogClientProvider(mode: 'stub' | 'http', logger: Logger): InjectionObject<IRasterCatalogClient> {
   if (mode === 'http') {
     throw new Error('RASTER_CATALOG_MODE=http is not implemented yet - no confirmed Raster Catalog contract exists. Use RASTER_CATALOG_MODE=stub.');
@@ -57,6 +53,7 @@ const registerExternalValues = async (options?: RegisterOptions): Promise<Depend
     { token: CONFIG_SERVER_CLIENT, provider: { useClass: HttpConfigServerClient } },
     { token: BLOB_STORAGE_CLIENT, provider: { useClass: StubBlobStorageClient } },
     rasterCatalogClientProvider(basemapManagementEnv.rasterCatalog.mode, logger),
+    { token: MAP_SERVER_CAPABILITIES_CLIENT, provider: { useClass: HttpMapServerCapabilitiesClient } },
     { token: BASEMAPS_ROUTER_SYMBOL, provider: { useFactory: basemapsRouterFactory } },
     {
       token: 'onSignal',

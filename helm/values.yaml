@@ -156,6 +156,10 @@ basemapManagement:
     # Only 'stub' is implemented. Setting 'http' fails the service at startup rather than silently
     # using the stub - see containerConfig.ts#rasterCatalogClientProvider.
     mode: 'stub'
+  mapServer:
+    # Raster MapProxy base URL - the same value the BFF uses as MAP_SERVICE_RASTER_URL. Needed to resolve
+    # catalog layers' WMTS capabilities; when unreachable, catalog layers are returned as UNRESOLVED_CATALOG_RESOURCE.
+    url: ''
   uploadLimits:
     thumbnailMaxSizeBytes: 2097152 # 2MB - a 128x128 PNG/WebP comes nowhere close to this
     importPackageMaxSizeBytes: 10485760 # 10MB - generous for a tiny JSON doc + one 128x128 image

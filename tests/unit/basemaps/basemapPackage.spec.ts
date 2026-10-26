@@ -1,6 +1,7 @@
 import jsZip from 'jszip';
 import { describe, it, expect } from 'vitest';
-import { ProductType } from '@map-colonies/types';
+import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
+import { SourceTypeInput } from '@src/basemaps/models/types';
 import { writeBasemapPackage } from '@src/basemaps/packaging/basemapPackageWriter';
 import { readBasemapPackage } from '@src/basemaps/packaging/basemapPackageReader';
 import type { IPortableBasemap } from '@src/basemaps/models/types';
@@ -32,13 +33,17 @@ function buildPortable(overrides: Partial<IPortableBasemap> = {}): IPortableBase
         order: 0,
         opacity: 1,
         shouldBeUsedInModelDraping: true,
-        source: { type: 'RASTER_RESOURCE', productId: '12345', productType: ProductType.ORTHOPHOTO },
+        source: {
+          type: SourceTypeInput.CATALOG_RESOURCE,
+          domain: Domain.RASTER,
+          uniqueness: { productId: '12345', productType: ProductType.ORTHOPHOTO },
+        },
       },
       {
         id: 'layer-2',
         order: 1,
         opacity: 0.7,
-        source: { type: 'EXTERNAL', details: { protocol: 'XYZ', name: 'Google Satellite', url: 'https://example.com/{z}/{x}/{y}' } },
+        source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: 'Google Satellite', url: 'https://example.com/{z}/{x}/{y}' } },
       },
     ],
     ...overrides,
@@ -167,7 +172,7 @@ describe('basemap package write/read round-trip', () => {
       id: 'l1',
       order: 0,
       opacity: 1,
-      source: { type: 'EXTERNAL', details: { protocol: 'FTP', name: 'n', url: 'https://example.com' } },
+      source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'FTP', name: 'n', url: 'https://example.com' } },
     };
     const zip = new jsZip();
     zip.file('basemap.json', JSON.stringify({ ...portable, layers: [badLayer] }));
@@ -175,6 +180,29 @@ describe('basemap package write/read round-trip', () => {
     const buffer = await zip.generateAsync({ type: 'nodebuffer' });
 
     await expect(readBasemapPackage(buffer)).rejects.toThrow(/unknown protocol/);
+  });
+
+  it.each([
+    ['the legacy RASTER_RESOURCE shape', { type: 'RASTER_RESOURCE', productId: 'p', productType: 'Orthophoto' }, /not a recognized source type/],
+    [
+      'an output-only RESOLVED_CATALOG_RESOURCE',
+      { type: 'RESOLVED_CATALOG_RESOURCE', domain: 'RASTER', layer: {}, capabilities: {} },
+      /not a recognized source type/,
+    ],
+    [
+      'a CATALOG_RESOURCE with an unsupported domain',
+      { type: 'CATALOG_RESOURCE', domain: 'VECTOR', uniqueness: { productId: 'p', productType: 'Orthophoto' } },
+      /domain/,
+    ],
+    ['a CATALOG_RESOURCE missing uniqueness', { type: 'CATALOG_RESOURCE', domain: 'RASTER' }, /uniqueness/],
+  ])('rejects a layer whose source is %s', async (_label, source, expectedError) => {
+    const portable = buildPortable();
+    const zip = new jsZip();
+    zip.file('basemap.json', JSON.stringify({ ...portable, layers: [{ id: 'l1', order: 0, opacity: 1, source }] }));
+    zip.file('thumbnail.png', buildPngBuffer());
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    await expect(readBasemapPackage(buffer)).rejects.toThrow(expectedError);
   });
 
   it('rejects a layer with an unrecognized source.type', async () => {

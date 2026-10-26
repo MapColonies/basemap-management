@@ -4,10 +4,10 @@ import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '@common/constants';
 import { NotFoundError } from '@common/errors';
 import { CONFIG_SERVER_CLIENT, type IConfigServerClient } from '@src/clients/configServer/configServerClient';
-import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { applyDefaultRoles, assertSingleOwnerPerRole } from './defaultRolePolicy';
 import { validateBasemapWriteInput } from './basemapValidation';
-import type { IBasemap, IBasemapLayerInput, IBasemapLayerOutput, IBasemapLayerSourceOutput, IBasemapWriteInput, IPersistedBasemap } from './types';
+import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
+import type { IBasemap, IBasemapLayerInput, IBasemapLayerOutput, IBasemapWriteInput, IPersistedBasemap } from './types';
 
 @injectable()
 class BasemapsManager {
@@ -15,13 +15,14 @@ class BasemapsManager {
 
   public constructor(
     @inject(CONFIG_SERVER_CLIENT) private readonly configServerClient: IConfigServerClient,
-    @inject(RASTER_CATALOG_CLIENT) private readonly rasterCatalogClient: IRasterCatalogClient,
+    @inject(CatalogResourceResolver) private readonly resolver: CatalogResourceResolver,
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {}
 
   public async list(): Promise<IBasemap[]> {
     const basemaps = await this.listPersisted();
-    return Promise.all(basemaps.map(async (basemap) => this.toOutput(basemap)));
+    const resolve = this.resolver.createScope();
+    return Promise.all(basemaps.map(async (basemap) => this.toOutput(basemap, resolve)));
   }
 
   public async listPersisted(): Promise<IPersistedBasemap[]> {
@@ -86,8 +87,8 @@ class BasemapsManager {
     return basemap;
   }
 
-  private async toOutput(basemap: IPersistedBasemap): Promise<IBasemap> {
-    const layers = await Promise.all(basemap.layers.map(async (layer) => this.toOutputLayer(layer)));
+  private async toOutput(basemap: IPersistedBasemap, resolve: SourceResolver = this.resolver.createScope()): Promise<IBasemap> {
+    const layers = await Promise.all(basemap.layers.map(async (layer) => this.toOutputLayer(layer, resolve)));
     return {
       id: basemap.id,
       name: basemap.name,
@@ -98,11 +99,8 @@ class BasemapsManager {
     };
   }
 
-  private async toOutputLayer(layer: IBasemapLayerInput): Promise<IBasemapLayerOutput> {
-    const source: IBasemapLayerSourceOutput =
-      layer.source.type === 'RASTER_RESOURCE'
-        ? { type: 'RASTER_RESOLVED_RESOURCE', layer: await this.rasterCatalogClient.resolve(layer.source.productId, layer.source.productType) }
-        : layer.source;
+  private async toOutputLayer(layer: IBasemapLayerInput, resolve: SourceResolver): Promise<IBasemapLayerOutput> {
+    const source = await resolve(layer.source);
     return { id: layer.id, order: layer.order, opacity: layer.opacity, shouldBeUsedInModelDraping: layer.shouldBeUsedInModelDraping, source };
   }
 

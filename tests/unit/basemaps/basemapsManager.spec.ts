@@ -2,11 +2,16 @@ import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect } from 'vitest';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
 import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
-import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
+import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import type { IBasemap, IBasemapWriteInput } from '@src/basemaps/models/types';
 
-// eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-const noopRasterCatalogClient: IRasterCatalogClient = { resolve: async () => undefined };
+async function noopResolver(): Promise<CatalogResourceResolver> {
+  return new CatalogResourceResolver(
+    { resolveLayer: async () => Promise.resolve(null) },
+    { getCapabilities: async () => Promise.resolve([]) },
+    await jsLogger({ enabled: false })
+  );
+}
 
 class FakeConfigServerClient implements IConfigServerClient {
   public version = 0;
@@ -48,7 +53,7 @@ describe('BasemapsManager', () => {
 
   beforeEach(async () => {
     configServerClient = new FakeConfigServerClient();
-    manager = new BasemapsManager(configServerClient, noopRasterCatalogClient, await jsLogger({ enabled: false }));
+    manager = new BasemapsManager(configServerClient, await noopResolver(), await jsLogger({ enabled: false }));
   });
 
   describe('#create', () => {
@@ -138,7 +143,7 @@ describe('BasemapsManager', () => {
         getLatest: async () => Promise.reject(new Error('config-server unreachable')),
         save: configServerClient.save.bind(configServerClient),
       };
-      const failingManager = new BasemapsManager(failingClient, noopRasterCatalogClient, await jsLogger({ enabled: false }));
+      const failingManager = new BasemapsManager(failingClient, await noopResolver(), await jsLogger({ enabled: false }));
 
       await expect(failingManager.list()).rejects.toThrow(/unreachable/);
     });

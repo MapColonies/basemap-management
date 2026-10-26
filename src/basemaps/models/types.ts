@@ -1,9 +1,20 @@
-import type { ProductType } from '@map-colonies/types';
+import { ProtocolType } from './catalogTypes';
+import type { CapabilityModelType, Domain, LayerRasterRecordModelType, ProductType } from './catalogTypes';
 
 export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
-export const PROTOCOLS = ['XYZ', 'WMTS', 'WMS', 'OSM'] as const;
-export type Protocol = (typeof PROTOCOLS)[number];
+export const PROTOCOLS: readonly ProtocolType[] = Object.values(ProtocolType);
+
+export enum SourceTypeInput {
+  CATALOG_RESOURCE = 'CATALOG_RESOURCE',
+  EXTERNAL = 'EXTERNAL',
+}
+
+export enum SourceTypeOutput {
+  RESOLVED_CATALOG_RESOURCE = 'RESOLVED_CATALOG_RESOURCE',
+  UNRESOLVED_CATALOG_RESOURCE = 'UNRESOLVED_CATALOG_RESOURCE',
+  EXTERNAL = 'EXTERNAL',
+}
 
 export interface IBasemapThumbnail {
   url: string;
@@ -11,31 +22,49 @@ export interface IBasemapThumbnail {
   height: typeof THUMBNAIL_DIMENSION_PIXELS;
 }
 
+export interface IRasterUniqueness {
+  productId: string;
+  productType: ProductType;
+}
+
 export interface IExternalLayerDetails {
-  protocol: Protocol;
+  protocol: ProtocolType;
   name: string;
   url: string;
   [key: string]: unknown;
 }
 
-export interface IExternalLayerSource {
-  type: 'EXTERNAL';
+export interface IExternalLayerSourceInput {
+  type: SourceTypeInput.EXTERNAL;
   details: IExternalLayerDetails;
 }
 
-export interface IRasterResourceLayerSource {
-  type: 'RASTER_RESOURCE';
-  productId: string;
-  productType: ProductType;
+export interface IExternalLayerSourceOutput {
+  type: SourceTypeOutput.EXTERNAL;
+  details: IExternalLayerDetails;
 }
 
-export interface IRasterResolvedResourceLayerSource {
-  type: 'RASTER_RESOLVED_RESOURCE';
-  layer: unknown;
+export interface ICatalogResourceLayerSource {
+  type: SourceTypeInput.CATALOG_RESOURCE;
+  domain: Domain.RASTER;
+  uniqueness: IRasterUniqueness;
 }
 
-export type IBasemapLayerSourceInput = IRasterResourceLayerSource | IExternalLayerSource;
-export type IBasemapLayerSourceOutput = IRasterResolvedResourceLayerSource | IExternalLayerSource;
+export interface IResolvedCatalogResourceLayerSource {
+  type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE;
+  domain: Domain.RASTER;
+  layer: LayerRasterRecordModelType;
+  capabilities: CapabilityModelType;
+}
+
+export interface IUnresolvedCatalogResourceLayerSource {
+  type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE;
+  domain: Domain.RASTER;
+  uniqueness: IRasterUniqueness;
+}
+
+export type IBasemapLayerSourceInput = ICatalogResourceLayerSource | IExternalLayerSourceInput;
+export type IBasemapLayerSourceOutput = IResolvedCatalogResourceLayerSource | IUnresolvedCatalogResourceLayerSource | IExternalLayerSourceOutput;
 
 export interface IBasemapLayerBase {
   id: string;
@@ -104,11 +133,8 @@ export interface IImportReviewRoleConflict {
   basemapName: string;
 }
 
-export interface IImportReviewLayer {
+export interface IImportReviewLayer extends IBasemapLayerOutput {
   status: 'RESOLVED' | 'UNRESOLVED';
-  opacity: number;
-  shouldBeUsedInModelDraping?: boolean;
-  source: IBasemapLayerSourceInput;
 }
 
 export type IImportReviewThumbnail =

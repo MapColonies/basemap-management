@@ -8,6 +8,7 @@ const ENV_KEYS = [
   'DATA_SERVICE_URL',
   'RASTER_CATALOG_URL',
   'RASTER_CATALOG_MODE',
+  'MAP_SERVER_URL',
   'THUMBNAIL_MAX_SIZE_BYTES',
   'IMPORT_PACKAGE_MAX_SIZE_BYTES',
 ] as const;
@@ -48,6 +49,7 @@ describe('getBasemapManagementEnv', () => {
     process.env.DATA_SERVICE_URL = 'http://data-service';
     process.env.RASTER_CATALOG_URL = 'http://raster-catalog';
     process.env.RASTER_CATALOG_MODE = 'stub';
+    process.env.MAP_SERVER_URL = 'http://mapproxy';
     process.env.THUMBNAIL_MAX_SIZE_BYTES = '123';
     process.env.IMPORT_PACKAGE_MAX_SIZE_BYTES = '456';
 
@@ -57,6 +59,7 @@ describe('getBasemapManagementEnv', () => {
       configServer: { url: 'http://config-server', configName: 'basemaps-test', schemaId: 'https://example.com/schema' },
       dataService: { url: 'http://data-service' },
       rasterCatalog: { url: 'http://raster-catalog', mode: 'stub' },
+      mapServer: { url: 'http://mapproxy' },
       uploadLimits: { thumbnailMaxSizeBytes: 123, importPackageMaxSizeBytes: 456 },
     });
   });

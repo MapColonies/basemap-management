@@ -48,7 +48,7 @@ export type paths = {
     };
     get?: never;
     put?: never;
-    /** Parse and validate a Basemap export package (ZIP) without persisting anything. Returns a review describing the Basemap, its default-role consequences, and the resolution status of every Raster-backed layer against this environment's Raster Catalog. Resolution failures are reported, never silently dropped. */
+    /** Parse and validate a Basemap export package (ZIP) without persisting anything. Returns a review describing the Basemap, its default-role consequences, and the resolution of every catalog layer against this environment's catalog and MapProxy. Resolution failures are reported, never silently dropped. */
     post: operations['validateBasemapImport'];
     delete?: never;
     options?: never;
@@ -125,7 +125,7 @@ export type components = {
     } & {
       [key: string]: unknown;
     };
-    /** @description An externally-served layer (not a managed Raster resource). Identical on write and read. */
+    /** @description An externally-served layer (not a catalog resource). Identical on write and read. */
     externalLayerSource: {
       /**
        * @description discriminator enum property added by openapi-typescript
@@ -134,29 +134,94 @@ export type components = {
       type: 'EXTERNAL';
       details: components['schemas']['externalLayerDetails'];
     };
-    /** @description A managed Raster resource, addressed by its portable identity (productId + productType). This is also the persisted identity - there is no separate environment-specific id. */
-    rasterResourceLayerSource: {
-      /**
-       * @description discriminator enum property added by openapi-typescript
-       * @enum {string}
-       */
-      type: 'RASTER_RESOURCE';
+    /**
+     * @description Catalog domain of a catalog resource. Only RASTER is currently supported (VECTOR is future scope).
+     * @enum {string}
+     */
+    domain: 'RASTER';
+    /** @description Identifies a raster catalog product. This is also the persisted/portable identity - there is no environment-specific id. */
+    rasterUniqueness: {
       productId: string;
+      /** @description Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto). */
       productType: string;
     };
-    /** @description A managed Raster resource, resolved against this environment's Raster Catalog at read time. `layer` is a placeholder for whatever shape the Raster Catalog integration ends up returning - unconstrained until that contract is confirmed (see README). */
-    rasterResolvedResourceLayerSource: {
+    /** @description A catalog resource reference, as accepted by POST/PUT, persisted and exported (SourceTypeInput.CATALOG_RESOURCE). */
+    catalogResourceLayerSource: {
       /**
        * @description discriminator enum property added by openapi-typescript
        * @enum {string}
        */
-      type: 'RASTER_RESOLVED_RESOURCE';
-      layer: unknown;
+      type: 'CATALOG_RESOURCE';
+      domain: components['schemas']['domain'];
+      uniqueness: components['schemas']['rasterUniqueness'];
     };
-    /** @description A Basemap layer's source, as accepted by POST/PUT. */
-    basemapLayerSourceInput: components['schemas']['rasterResourceLayerSource'] | components['schemas']['externalLayerSource'];
-    /** @description A Basemap layer's source, as returned by GET - Raster resources arrive pre-resolved. */
-    basemapLayerSourceOutput: components['schemas']['rasterResolvedResourceLayerSource'] | components['schemas']['externalLayerSource'];
+    /** @description MapProxy WMTS capability of a catalog layer (same shape as the BFF GraphQL `Capability` / catalog-app CapabilityModelType). */
+    capability: {
+      /** @description WMTS Layer ows:Identifier (= the catalog record's WMTS link name). */
+      id: string;
+      style?: {
+        value: string;
+        isDefault?: string | null;
+      }[];
+      format?: string[];
+      tileMatrixSet?: {
+        tileMatrixSetID: string;
+        tileMatrixLabels: string[];
+      }[];
+      url?: {
+        format: string;
+        resourceType: string;
+        template: string;
+      }[];
+    };
+    /** @description The resolved catalog layer record (locally-defined LayerRasterRecordModelType fields; other record fields pass through). */
+    layerRasterRecord: {
+      id: string;
+      type?: string | null;
+      productName?: string;
+      productId?: string | null;
+      productVersion?: string | null;
+      productType?: string;
+      footprint?: unknown;
+      links?:
+        | {
+            name?: string | null;
+            description?: string | null;
+            protocol?: string;
+            url?: string;
+          }[]
+        | null;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description A catalog resource resolved at read time. Returned only when both the catalog record and its MapProxy capability were found (SourceTypeOutput.RESOLVED_CATALOG_RESOURCE). */
+    resolvedCatalogResourceLayerSource: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      type: 'RESOLVED_CATALOG_RESOURCE';
+      domain: components['schemas']['domain'];
+      layer: components['schemas']['layerRasterRecord'];
+      capabilities: components['schemas']['capability'];
+    };
+    /** @description A catalog resource whose record, WMTS link or MapProxy capability could not be found at read time (SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE). Carries the original reference; never accepted by writes. */
+    unresolvedCatalogResourceLayerSource: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      type: 'UNRESOLVED_CATALOG_RESOURCE';
+      domain: components['schemas']['domain'];
+      uniqueness: components['schemas']['rasterUniqueness'];
+    };
+    /** @description A Basemap layer's source, as accepted by POST/PUT (SourceTypeInput only). */
+    basemapLayerSourceInput: components['schemas']['catalogResourceLayerSource'] | components['schemas']['externalLayerSource'];
+    /** @description A Basemap layer's source, as returned by reads, write responses and the import review (SourceTypeOutput only). */
+    basemapLayerSourceOutput:
+      | components['schemas']['resolvedCatalogResourceLayerSource']
+      | components['schemas']['unresolvedCatalogResourceLayerSource']
+      | components['schemas']['externalLayerSource'];
     basemapLayerInput: {
       id: string;
       order: number;
@@ -182,7 +247,7 @@ export type components = {
       isForPreview: boolean;
       layers: components['schemas']['basemapLayerOutput'][];
     };
-    /** @description Same shape as a persisted Basemap, minus the server-assigned id, and with unresolved Raster layer sources. */
+    /** @description Same shape as a persisted Basemap, minus the server-assigned id. Layer sources use SourceTypeInput only (catalog resources as references). */
     basemapWriteInput: {
       name: string;
       thumbnail: components['schemas']['basemapThumbnail'];
@@ -190,14 +255,10 @@ export type components = {
       isForPreview: boolean;
       layers: components['schemas']['basemapLayerInput'][];
     };
-    /** @description One layer of an imported package, after attempting to verify every Raster-backed layer against this environment's Raster Catalog. */
-    importReviewLayer: {
+    /** @description One layer of an imported package, resolved against this environment exactly like a GET (output source types only). An UNRESOLVED_CATALOG_RESOURCE source carries the dangling reference the user must resolve/replace or remove before saving. */
+    importReviewLayer: components['schemas']['basemapLayerOutput'] & {
       /** @enum {string} */
       status: 'RESOLVED' | 'UNRESOLVED';
-      opacity: number;
-      shouldBeUsedInModelDraping?: boolean;
-      /** @description Present on every layer - the same shape POST/PUT accepts. For an UNRESOLVED Raster layer, this is the dangling productId/productType the user must resolve/replace or remove before saving. */
-      source?: Omit<components['schemas']['basemapLayerSourceInput'], 'type'>;
     };
     importReviewRoleConflict: {
       basemapId: string;

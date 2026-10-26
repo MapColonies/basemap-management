@@ -24,9 +24,10 @@
   {{- with .Values.basemapManagement }}
   CONFIG_BASEMAPS_NAME: {{ .configServer.name | quote }}
   CONFIG_BASEMAPS_SCHEMA_ID: {{ .configServer.schemaId | quote }}
-  DATA_SERVICE_URL: {{ .dataServiceUrl | quote }}
-  RASTER_CATALOG_URL: {{ .rasterCatalogUrl | quote }}
-  RASTER_CATALOG_MODE: {{ .rasterCatalogMode | quote }}
+  DATA_SERVICE_URL: {{ .dataService.url | quote }}
+  RASTER_CATALOG_URL: {{ .rasterCatalog.url | quote }}
+  RASTER_CATALOG_MODE: {{ .rasterCatalog.mode | quote }}
+  MAP_SERVER_URL: {{ .mapServer.url | quote }}
   {{/* `quote` on a bare numeric value renders large numbers in scientific notation (e.g. "2.097152e+06") - `int64` first keeps it a plain integer string. */}}
   THUMBNAIL_MAX_SIZE_BYTES: {{ .uploadLimits.thumbnailMaxSizeBytes | int64 | quote }}
   IMPORT_PACKAGE_MAX_SIZE_BYTES: {{ .uploadLimits.importPackageMaxSizeBytes | int64 | quote }}

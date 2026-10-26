@@ -2,12 +2,12 @@ import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '@common/constants';
 import { NotFoundError, UpstreamServiceError } from '@common/errors';
-import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { readBasemapPackage } from '../packaging/basemapPackageReader';
 import { writeBasemapPackage } from '../packaging/basemapPackageWriter';
 import { findCurrentOwner, findPreviewOwner } from './defaultRolePolicy';
 import { BasemapsManager } from './basemapsManager';
-import type { IBasemapLayerInput, IImportReview, IImportReviewLayer, IPortableBasemap } from './types';
+import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
+import { SourceTypeOutput, type IBasemapLayerInput, type IImportReview, type IImportReviewLayer, type IPortableBasemap } from './types';
 
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/png': 'png',
@@ -18,7 +18,7 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
 export class BasemapImportExportManager {
   public constructor(
     @inject(BasemapsManager) private readonly basemapsManager: BasemapsManager,
-    @inject(RASTER_CATALOG_CLIENT) private readonly rasterCatalogClient: IRasterCatalogClient,
+    @inject(CatalogResourceResolver) private readonly resolver: CatalogResourceResolver,
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {}
 
@@ -55,7 +55,8 @@ export class BasemapImportExportManager {
     const { portable, thumbnail } = await readBasemapPackage(archiveBuffer);
     const existingBasemaps = await this.basemapsManager.listPersisted();
 
-    const layers = await Promise.all(portable.layers.map(async (layer) => this.toReviewLayer(layer)));
+    const resolve = this.resolver.createScope();
+    const layers = await Promise.all(portable.layers.map(async (layer) => this.toReviewLayer(layer, resolve)));
 
     const currentOwner = portable.isCurrent ? findCurrentOwner(existingBasemaps) : undefined;
     const previewOwner = portable.isForPreview ? findPreviewOwner(existingBasemaps) : undefined;
@@ -79,17 +80,15 @@ export class BasemapImportExportManager {
     };
   }
 
-  private async toReviewLayer(layer: IBasemapLayerInput): Promise<IImportReviewLayer> {
-    if (layer.source.type !== 'RASTER_RESOURCE') {
-      return { status: 'RESOLVED', opacity: layer.opacity, shouldBeUsedInModelDraping: layer.shouldBeUsedInModelDraping, source: layer.source };
-    }
-
-    const resolved = await this.rasterCatalogClient.resolve(layer.source.productId, layer.source.productType);
+  private async toReviewLayer(layer: IBasemapLayerInput, resolve: SourceResolver): Promise<IImportReviewLayer> {
+    const source = await resolve(layer.source);
     return {
-      status: resolved === undefined ? 'UNRESOLVED' : 'RESOLVED',
+      status: source.type === SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE ? 'UNRESOLVED' : 'RESOLVED',
+      id: layer.id,
+      order: layer.order,
       opacity: layer.opacity,
       shouldBeUsedInModelDraping: layer.shouldBeUsedInModelDraping,
-      source: layer.source,
+      source,
     };
   }
 }

@@ -1,6 +1,6 @@
-import { ProductType } from '@map-colonies/types';
 import { ValidationError } from '@common/errors';
-import { PROTOCOLS } from './types';
+import { ProductType } from './catalogTypes';
+import { PROTOCOLS, SourceTypeInput } from './types';
 import type { IBasemapLayerInput, IBasemapWriteInput } from './types';
 
 const MIN_OPACITY = 0;
@@ -13,16 +13,16 @@ function validateLayer(layer: IBasemapLayerInput): void {
   }
 
   switch (layer.source.type) {
-    case 'RASTER_RESOURCE':
-      if (layer.source.productId.length === 0) {
-        throw new ValidationError(`layer "${layer.id}" is missing productId`);
+    case SourceTypeInput.CATALOG_RESOURCE:
+      if (layer.source.uniqueness.productId.length === 0) {
+        throw new ValidationError(`layer "${layer.id}" is missing uniqueness.productId`);
       }
-      if (!VALID_PRODUCT_TYPES.has(layer.source.productType)) {
-        throw new ValidationError(`layer "${layer.id}" has an unknown productType "${layer.source.productType}"`);
+      if (!VALID_PRODUCT_TYPES.has(layer.source.uniqueness.productType)) {
+        throw new ValidationError(`layer "${layer.id}" has an unknown uniqueness.productType "${layer.source.uniqueness.productType}"`);
       }
       break;
-    case 'EXTERNAL':
-      if (!(PROTOCOLS as readonly string[]).includes(layer.source.details.protocol)) {
+    case SourceTypeInput.EXTERNAL:
+      if (!PROTOCOLS.includes(layer.source.details.protocol)) {
         throw new ValidationError(`layer "${layer.id}" has an unknown protocol "${layer.source.details.protocol}"`);
       }
       if (layer.source.details.name.trim().length === 0) {
@@ -39,10 +39,6 @@ function validateLayer(layer: IBasemapLayerInput): void {
   }
 }
 
-/**
- * Validates a Basemap write input (POST/PUT body) before it is ever handed to a manager/persistence
- * layer. Throws {@link ValidationError} (HTTP 400) on the first problem found.
- */
 export function validateBasemapWriteInput(input: IBasemapWriteInput): void {
   if (input.name.trim().length === 0) {
     throw new ValidationError('name must not be empty');

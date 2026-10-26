@@ -34,6 +34,13 @@ interface IBasemapManagementEnv {
     url: string;
     mode: RasterCatalogMode;
   };
+  mapServer: {
+    /**
+     * Raster MapProxy base URL - the same value the BFF reads as `MAP_SERVICE_RASTER_URL`. The WMTS
+     * capabilities path is appended by `HttpMapServerCapabilitiesClient` unless already present.
+     */
+    url: string;
+  };
   uploadLimits: {
     thumbnailMaxSizeBytes: number;
     importPackageMaxSizeBytes: number;
@@ -83,6 +90,9 @@ function getBasemapManagementEnv(): IBasemapManagementEnv {
     rasterCatalog: {
       url: process.env.RASTER_CATALOG_URL ?? '',
       mode: parseRasterCatalogMode(process.env.RASTER_CATALOG_MODE),
+    },
+    mapServer: {
+      url: process.env.MAP_SERVER_URL ?? '',
     },
     uploadLimits: {
       thumbnailMaxSizeBytes: parseByteSize(process.env.THUMBNAIL_MAX_SIZE_BYTES, DEFAULT_THUMBNAIL_MAX_SIZE_MEGABYTES * BYTES_PER_MEGABYTE),

@@ -1,7 +1,8 @@
 import jsZip from 'jszip';
 import { ValidationError } from '@common/errors';
 import { sniffImage } from '../thumbnails/imageFormat';
-import { PROTOCOLS, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
+import { Domain } from '../models/catalogTypes';
+import { PROTOCOLS, SourceTypeInput, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
 import type { IBasemapLayerInput, IImportPackageThumbnail, IPortableBasemap } from '../models/types';
 
 const MAX_ENTRIES = 10;
@@ -42,14 +43,18 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
   }
   const source = candidate.source as { type?: unknown };
   switch (source.type) {
-    case 'RASTER_RESOURCE': {
-      const rasterSource = source as { productId?: unknown; productType?: unknown };
-      if (typeof rasterSource.productId !== 'string' || typeof rasterSource.productType !== 'string') {
-        throw new ValidationError(`layers[${index}].source is missing productId/productType`);
+    case SourceTypeInput.CATALOG_RESOURCE: {
+      const catalogSource = source as { domain?: unknown; uniqueness?: unknown };
+      if (catalogSource.domain !== Domain.RASTER) {
+        throw new ValidationError(`layers[${index}].source.domain must be ${Domain.RASTER}`);
+      }
+      const uniqueness = catalogSource.uniqueness as { productId?: unknown; productType?: unknown } | null | undefined;
+      if (typeof uniqueness?.productId !== 'string' || typeof uniqueness.productType !== 'string') {
+        throw new ValidationError(`layers[${index}].source is missing uniqueness.productId/productType`);
       }
       break;
     }
-    case 'EXTERNAL': {
+    case SourceTypeInput.EXTERNAL: {
       const externalSource = source as { details?: unknown };
       if (typeof externalSource.details !== 'object' || externalSource.details === null) {
         throw new ValidationError(`layers[${index}].source is missing details`);
