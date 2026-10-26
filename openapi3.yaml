@@ -14,7 +14,7 @@ paths:
         - basemaps
       summary: List all Basemaps
       responses:
-        200:
+        '200':
           description: OK
           content:
             application/json:
@@ -100,7 +100,7 @@ paths:
                   format: binary
                   description: The Basemap export ZIP package (basemap.json + thumbnail binary).
       responses:
-        200:
+        '200':
           description: OK
           content:
             application/json:
