@@ -26,9 +26,11 @@
         "TELEMETRY_TRACING_ENABLED": "false",
         "TELEMETRY_METRICS_ENABLED": "false",
         "TELEMETRY_TRACING_URL": "http://localhost:55681/v1/trace",
-        "TELEMETRY_METRICS_URL": "http://localhost:55681/v1/metrics"
+        "TELEMETRY_METRICS_URL": "http://localhost:55681/v1/metrics",
+        "CONFIG_MANAGEMENT_URL": "https://infra-config-config-server-manual-route-infra-services.apps.j1lk3njp.eastus.aroapp.io"
         // "OPENAPI_FILE_PATH": "./openapi3.yaml"
-      }
+      },
+      "runtimeExecutable": "${env:HOME}/.nvm/versions/node/v20.19.1/bin/node"
     }
   ]
 }

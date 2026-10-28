@@ -2,5 +2,9 @@
   "typescript.tsdk": "node_modules/typescript/lib",
   "files.eol": "\n",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "files.insertFinalNewline": true
+  "files.insertFinalNewline": true,
+  "yaml.schemas": {
+    "./schemas/values.schema.json": ["helm/values.yaml"],
+    "./schemas/global.schema.json": ["helm/global.yaml"]
+  }
 }
