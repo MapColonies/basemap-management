@@ -205,6 +205,42 @@ describe('basemap package write/read round-trip', () => {
     await expect(readBasemapPackage(buffer)).rejects.toThrow(expectedError);
   });
 
+  it.each([
+    ['no productId', { productType: 'Orthophoto' }],
+    ['a null productId', { productId: null, productType: 'Orthophoto' }],
+    ['an empty uniqueness', {}],
+  ])('accepts a CATALOG_RESOURCE layer with %s (it resolves as UNRESOLVED on review)', async (_label, uniqueness) => {
+    const portable = buildPortable();
+    const zip = new jsZip();
+    zip.file(
+      'basemap.json',
+      JSON.stringify({
+        ...portable,
+        layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: 'CATALOG_RESOURCE', domain: 'RASTER', uniqueness } }],
+      })
+    );
+    zip.file('thumbnail.png', buildPngBuffer());
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    await expect(readBasemapPackage(buffer)).resolves.toMatchObject({ portable: { layers: [{ source: { uniqueness } }] } });
+  });
+
+  it('rejects a CATALOG_RESOURCE layer whose uniqueness values have the wrong JSON type', async () => {
+    const portable = buildPortable();
+    const zip = new jsZip();
+    zip.file(
+      'basemap.json',
+      JSON.stringify({
+        ...portable,
+        layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: 'CATALOG_RESOURCE', domain: 'RASTER', uniqueness: { productId: 12345 } } }],
+      })
+    );
+    zip.file('thumbnail.png', buildPngBuffer());
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    await expect(readBasemapPackage(buffer)).rejects.toThrow(/must be strings when present/);
+  });
+
   it('rejects a layer with an unrecognized source.type', async () => {
     const portable = buildPortable();
     const badLayer = { id: 'l1', order: 0, opacity: 1, source: { type: 'SOMETHING_ELSE' } };

@@ -31,7 +31,6 @@ function baseInput(): IBasemapWriteInput {
   };
 }
 
-/** `noUncheckedIndexedAccess` makes `input.layers[n]` possibly-undefined - these tests know better. */
 function layerAt(input: IBasemapWriteInput, index: number): IBasemapLayerInput {
   const layer = input.layers[index];
   if (!layer) {
@@ -67,26 +66,17 @@ describe('validateBasemapWriteInput', () => {
     expect(() => validateBasemapWriteInput(input)).toThrow(/opacity/);
   });
 
-  it('rejects a CATALOG_RESOURCE layer missing uniqueness.productId', () => {
+  it.each([
+    ['an empty productId', { productId: '', productType: ProductType.ORTHOPHOTO }],
+    ['a null productId', { productId: null, productType: ProductType.ORTHOPHOTO }],
+    ['no productId', { productType: ProductType.ORTHOPHOTO }],
+    ['no productType', { productId: '12345' }],
+    ['an unrecognized productType', { productId: '12345', productType: 'NotARealProductType' as ProductType }],
+    ['an empty uniqueness', {}],
+  ])('accepts a CATALOG_RESOURCE layer with %s - it resolves as UNRESOLVED instead of failing the request', (_label, uniqueness) => {
     const input = baseInput();
-    input.layers[0] = {
-      ...layerAt(input, 0),
-      source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: { productId: '', productType: ProductType.ORTHOPHOTO } },
-    };
-    expect(() => validateBasemapWriteInput(input)).toThrow(/productId/);
-  });
-
-  it('rejects a CATALOG_RESOURCE layer with an unrecognized productType', () => {
-    const input = baseInput();
-    input.layers[0] = {
-      ...layerAt(input, 0),
-      source: {
-        type: SourceType.CATALOG_RESOURCE,
-        domain: Domain.RASTER,
-        uniqueness: { productId: '12345', productType: 'NotARealProductType' as ProductType },
-      },
-    };
-    expect(() => validateBasemapWriteInput(input)).toThrow(/productType/);
+    input.layers[0] = { ...layerAt(input, 0), source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness } };
+    expect(() => validateBasemapWriteInput(input)).not.toThrow();
   });
 
   it('rejects an EXTERNAL layer with an unrecognized protocol', () => {

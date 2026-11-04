@@ -332,7 +332,6 @@ describe('basemaps', () => {
 
       const manifest = JSON.parse(await zip.file('basemap.json')!.async('string')) as { layers: { source: unknown }[] };
 
-      // the portable form is the canonical input source - no environment-specific id, no resolved layer.
       expect(manifest.layers[0]?.source).toEqual({
         type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
@@ -380,6 +379,50 @@ describe('basemaps', () => {
       const body = response.body as { layers: { source: unknown }[] };
 
       expect(body.layers[0]?.source).toEqual({ type: SourceType.EXTERNAL, status: Status.RESOLVED, details });
+    });
+
+    it('accepts a catalog layer with an incomplete uniqueness and returns it as UNRESOLVED on GET', async () => {
+      const thumbnail = await uploadThumbnail();
+      const uniqueness = { productId: null, productType: ProductType.ORTHOPHOTO };
+      const createResponse = await request(app)
+        .post('/basemaps')
+        .send({
+          name: 'Incomplete',
+          thumbnail,
+          isCurrent: false,
+          isForPreview: false,
+          layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness } }],
+        });
+
+      expect(createResponse.status).toBe(httpStatusCodes.CREATED);
+
+      const response = await requestSender.getBasemap({ pathParams: { basemapId: (createResponse.body as { id: string }).id } });
+
+      expect(response).toSatisfyApiSpec();
+      expect((response.body as { layers: { source: unknown }[] }).layers[0]?.source).toEqual({
+        type: SourceType.CATALOG_RESOURCE,
+        domain: Domain.RASTER,
+        uniqueness,
+        status: Status.UNRESOLVED,
+        layer: null,
+        capabilities: null,
+      });
+    });
+
+    it('still rejects a catalog layer whose uniqueness values have the wrong JSON type with 400', async () => {
+      const thumbnail = await uploadThumbnail();
+
+      const response = await request(app)
+        .post('/basemaps')
+        .send({
+          name: 'Malformed',
+          thumbnail,
+          isCurrent: false,
+          isForPreview: false,
+          layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: 'CATALOG_RESOURCE', domain: 'RASTER', uniqueness: { productId: 12345 } } }],
+        });
+
+      expect(response.status).toBe(httpStatusCodes.BAD_REQUEST);
     });
 
     it('returns the layer as UNRESOLVED with null layer/capabilities when MapProxy has no matching capability', async () => {

@@ -21,7 +21,9 @@ export interface IBasemapThumbnail {
   height: typeof THUMBNAIL_DIMENSION_PIXELS;
 }
 
-export interface IRasterUniqueness {
+export type IRasterUniqueness = Pick<LayerRasterRecordModelType, 'productId' | 'productType'>;
+
+export interface IResolvableRasterUniqueness {
   productId: string;
   productType: ProductType;
 }

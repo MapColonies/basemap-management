@@ -61,6 +61,20 @@ describe('CatalogResourceResolver', () => {
     expect(mapServerClient.getCapabilities).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['no productId', { productType: ProductType.ORTHOPHOTO }],
+    ['a null productId', { productId: null, productType: ProductType.ORTHOPHOTO }],
+    ['an empty productId', { productId: '', productType: ProductType.ORTHOPHOTO }],
+    ['no productType', { productId: '12345' }],
+    ['an unknown productType', { productId: '12345', productType: 'NotARealProductType' as ProductType }],
+  ])('returns UNRESOLVED (keeping the reference as stored) for %s, without any catalog or MapProxy lookup', async (_label, uniqueness) => {
+    const source: ICatalogResourceLayerSource = { ...CATALOG_SOURCE, uniqueness };
+
+    await expect(resolver.createScope()(source)).resolves.toEqual({ ...UNRESOLVED, uniqueness });
+    expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
+    expect(mapServerClient.getCapabilities).not.toHaveBeenCalled();
+  });
+
   it('returns UNRESOLVED when the record has no WMTS link', async () => {
     rasterCatalogClient.resolveLayer.mockResolvedValue({ ...RECORD, links: [{ protocol: 'WMS', name: 'x', url: 'u' }] });
 

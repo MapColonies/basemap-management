@@ -3,17 +3,27 @@ import type { Logger } from '@map-colonies/js-logger';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import type { CapabilityModelType, LayerRasterRecordModelType } from './catalogTypes';
+import { ProductType, type CapabilityModelType, type LayerRasterRecordModelType } from './catalogTypes';
 import {
   SourceType,
   Status,
   type IBasemapLayerSourceInput,
   type IBasemapLayerSourceOutput,
   type ICatalogResourceLayerSource,
+  type IRasterUniqueness,
+  type IResolvableRasterUniqueness,
   type IUnresolvedCatalogResourceLayerSource,
 } from './types';
 
 const WMTS_PROTOCOL = 'WMTS';
+const RASTER_PRODUCT_TYPES = new Set<string>(Object.values(ProductType));
+
+function toResolvableUniqueness({ productId, productType }: IRasterUniqueness): IResolvableRasterUniqueness | undefined {
+  if (typeof productId !== 'string' || productId.length === 0 || productType === undefined || !RASTER_PRODUCT_TYPES.has(productType)) {
+    return undefined;
+  }
+  return { productId, productType };
+}
 
 function findWmtsLinkName(layer: LayerRasterRecordModelType): string | undefined {
   const name = layer.links?.find((link) => link.protocol === WMTS_PROTOCOL)?.name;
@@ -32,7 +42,6 @@ export class CatalogResourceResolver {
     let capabilitiesPromise: Promise<CapabilityModelType[]> | undefined;
     const getCapabilities = async (): Promise<CapabilityModelType[]> => {
       capabilitiesPromise ??= this.mapServerClient.getCapabilities().catch((error: unknown) => {
-        // MapProxy unreachable: every catalog layer resolves as UNRESOLVED (design §A.12) - no fallback.
         this.logger.warn({ msg: 'MapProxy capabilities unavailable - catalog layers will be returned as unresolved', err: error });
         return [];
       });
@@ -58,7 +67,13 @@ export class CatalogResourceResolver {
     const reference = { type: SourceType.CATALOG_RESOURCE, domain: source.domain, uniqueness: source.uniqueness } as const;
     const unresolved: IUnresolvedCatalogResourceLayerSource = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };
 
-    const layer = await this.rasterCatalogClient.resolveLayer(source.domain, source.uniqueness);
+    const uniqueness = toResolvableUniqueness(source.uniqueness);
+    if (uniqueness === undefined) {
+      this.logger.warn({ msg: 'catalog reference is incomplete or has an unknown productType - returned as unresolved', ...source.uniqueness });
+      return unresolved;
+    }
+
+    const layer = await this.rasterCatalogClient.resolveLayer(source.domain, uniqueness);
     if (layer === null) {
       return unresolved;
     }

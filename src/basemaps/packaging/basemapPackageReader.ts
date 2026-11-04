@@ -17,6 +17,10 @@ interface IParsedBasemapPackage {
   thumbnail: IImportPackageThumbnail;
 }
 
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
 function isSafeEntryName(name: string): boolean {
   if (name.length === 0 || name.includes('..') || name.includes('/') || name.includes('\\')) {
     return false;
@@ -48,9 +52,12 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
       if (catalogSource.domain !== Domain.RASTER) {
         throw new ValidationError(`layers[${index}].source.domain must be ${Domain.RASTER}`);
       }
-      const uniqueness = catalogSource.uniqueness as { productId?: unknown; productType?: unknown } | null | undefined;
-      if (typeof uniqueness?.productId !== 'string' || typeof uniqueness.productType !== 'string') {
-        throw new ValidationError(`layers[${index}].source is missing uniqueness.productId/productType`);
+      if (typeof catalogSource.uniqueness !== 'object' || catalogSource.uniqueness === null) {
+        throw new ValidationError(`layers[${index}].source is missing uniqueness`);
+      }
+      const { productId, productType } = catalogSource.uniqueness as { productId?: unknown; productType?: unknown };
+      if (!isOptionalString(productId) || !isOptionalString(productType)) {
+        throw new ValidationError(`layers[${index}].source.uniqueness.productId/productType must be strings when present`);
       }
       break;
     }

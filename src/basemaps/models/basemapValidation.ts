@@ -1,11 +1,9 @@
 import { ValidationError } from '@common/errors';
-import { ProductType } from './catalogTypes';
 import { PROTOCOLS, SourceType } from './types';
 import type { IBasemapLayerInput, IBasemapWriteInput } from './types';
 
 const MIN_OPACITY = 0;
 const MAX_OPACITY = 1;
-const VALID_PRODUCT_TYPES = new Set<string>(Object.values(ProductType));
 
 function validateLayer(layer: IBasemapLayerInput): void {
   if (layer.opacity < MIN_OPACITY || layer.opacity > MAX_OPACITY) {
@@ -14,12 +12,6 @@ function validateLayer(layer: IBasemapLayerInput): void {
 
   switch (layer.source.type) {
     case SourceType.CATALOG_RESOURCE:
-      if (layer.source.uniqueness.productId.length === 0) {
-        throw new ValidationError(`layer "${layer.id}" is missing uniqueness.productId`);
-      }
-      if (!VALID_PRODUCT_TYPES.has(layer.source.uniqueness.productType)) {
-        throw new ValidationError(`layer "${layer.id}" has an unknown uniqueness.productType "${layer.source.uniqueness.productType}"`);
-      }
       break;
     case SourceType.EXTERNAL:
       if (!PROTOCOLS.includes(layer.source.details.protocol)) {

@@ -139,11 +139,11 @@ export type components = {
      * @enum {string}
      */
     domain: 'RASTER';
-    /** @description Identifies a raster catalog product. This is also the persisted/portable identity - there is no environment-specific id. */
+    /** @description Identifies a raster catalog product. This is also the persisted/portable identity - there is no environment-specific id. Both fields are optional: a missing, empty or unknown value is accepted and the layer is returned with status UNRESOLVED. */
     rasterUniqueness: {
-      productId: string;
+      productId?: string | null;
       /** @description Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto). */
-      productType: string;
+      productType?: string | null;
     };
     /** @description A catalog resource reference, as accepted by POST/PUT, persisted and exported. */
     catalogResourceLayerSource: {
@@ -155,7 +155,7 @@ export type components = {
       domain: components['schemas']['domain'];
       uniqueness: components['schemas']['rasterUniqueness'];
     };
-    /** @description MapProxy WMTS capability of a catalog layer (same shape as the BFF GraphQL `Capability` / catalog-app CapabilityModelType). */
+    /** @description MapProxy WMTS capability of a catalog layer. */
     capability: {
       /** @description WMTS Layer ows:Identifier (= the catalog record's WMTS link name). */
       id: string;
