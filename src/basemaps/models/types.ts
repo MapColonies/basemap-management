@@ -10,10 +10,9 @@ export enum SourceType {
   EXTERNAL = 'EXTERNAL',
 }
 
-export enum SourceTypeOutput {
-  RESOLVED_CATALOG_RESOURCE = 'RESOLVED_CATALOG_RESOURCE',
-  UNRESOLVED_CATALOG_RESOURCE = 'UNRESOLVED_CATALOG_RESOURCE',
-  EXTERNAL = 'EXTERNAL',
+export enum Status {
+  RESOLVED = 'RESOLVED',
+  UNRESOLVED = 'UNRESOLVED',
 }
 
 export interface IBasemapThumbnail {
@@ -40,7 +39,8 @@ export interface IExternalLayerSourceInput {
 }
 
 export interface IExternalLayerSourceOutput {
-  type: SourceTypeOutput.EXTERNAL;
+  type: SourceType.EXTERNAL;
+  status: Status.RESOLVED;
   details: IExternalLayerDetails;
 }
 
@@ -50,17 +50,22 @@ export interface ICatalogResourceLayerSource {
   uniqueness: IRasterUniqueness;
 }
 
-export interface IResolvedCatalogResourceLayerSource {
-  type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE;
+export interface ICatalogResourceLayerSourceOutputBase {
+  type: SourceType.CATALOG_RESOURCE;
   domain: Domain.RASTER;
+  uniqueness: IRasterUniqueness;
+}
+
+export interface IResolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {
+  status: Status.RESOLVED;
   layer: LayerRasterRecordModelType;
   capabilities: CapabilityModelType;
 }
 
-export interface IUnresolvedCatalogResourceLayerSource {
-  type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE;
-  domain: Domain.RASTER;
-  uniqueness: IRasterUniqueness;
+export interface IUnresolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {
+  status: Status.UNRESOLVED;
+  layer: null;
+  capabilities: null;
 }
 
 export type IBasemapLayerSourceInput = ICatalogResourceLayerSource | IExternalLayerSourceInput;
@@ -133,9 +138,7 @@ export interface IImportReviewRoleConflict {
   basemapName: string;
 }
 
-export interface IImportReviewLayer extends IBasemapLayerOutput {
-  status: 'RESOLVED' | 'UNRESOLVED';
-}
+export type IImportReviewLayer = IBasemapLayerOutput;
 
 export type IImportReviewThumbnail =
   { included: true; width: number; height: number; mimeType: 'image/png' | 'image/webp'; dataBase64: string } | { included: false };

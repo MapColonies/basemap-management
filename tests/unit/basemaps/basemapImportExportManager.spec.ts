@@ -1,7 +1,7 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
-import { SourceType, SourceTypeOutput } from '@src/basemaps/models/types';
+import { SourceType, Status } from '@src/basemaps/models/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { BasemapImportExportManager } from '@src/basemaps/models/basemapImportExportManager';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
@@ -183,12 +183,18 @@ describe('BasemapImportExportManager', () => {
 
       expect(review.layers).toEqual([
         {
-          status: 'RESOLVED',
           id: 'l1',
           order: 0,
           opacity: 1,
           shouldBeUsedInModelDraping: undefined,
-          source: { type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE, domain: Domain.RASTER, layer: RESOLVED_LAYER, capabilities: CAPABILITY },
+          source: {
+            type: SourceType.CATALOG_RESOURCE,
+            domain: Domain.RASTER,
+            uniqueness: KNOWN_UNIQUENESS,
+            status: Status.RESOLVED,
+            layer: RESOLVED_LAYER,
+            capabilities: CAPABILITY,
+          },
         },
       ]);
       expect(review.currentRoleConflict).toBeUndefined();
@@ -220,15 +226,17 @@ describe('BasemapImportExportManager', () => {
 
       expect(review.layers).toEqual([
         {
-          status: 'UNRESOLVED',
           id: 'l1',
           order: 0,
           opacity: 1,
           shouldBeUsedInModelDraping: undefined,
           source: {
-            type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE,
+            type: SourceType.CATALOG_RESOURCE,
             domain: Domain.RASTER,
             uniqueness: { productId: 'unknown-product', productType: ProductType.ORTHOPHOTO },
+            status: Status.UNRESOLVED,
+            layer: null,
+            capabilities: null,
           },
         },
       ]);
@@ -259,7 +267,13 @@ describe('BasemapImportExportManager', () => {
       const review = await manager.validateImport(zipBuffer);
 
       expect(review.layers).toEqual([
-        { status: 'RESOLVED', id: 'l1', order: 0, opacity: 0.5, shouldBeUsedInModelDraping: undefined, source: portable.layers[0]?.source },
+        {
+          id: 'l1',
+          order: 0,
+          opacity: 0.5,
+          shouldBeUsedInModelDraping: undefined,
+          source: { ...portable.layers[0]?.source, status: Status.RESOLVED },
+        },
       ]);
       expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
     });

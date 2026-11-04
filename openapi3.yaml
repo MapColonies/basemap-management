@@ -266,8 +266,8 @@ components:
     externalLayerSource:
       type: object
       description: >-
-        An externally-served layer (not a catalog resource). Identical on write
-        and read.
+        An externally-served layer (not a catalog resource), as accepted by
+        POST/PUT, persisted and exported.
       required:
         - type
         - details
@@ -306,7 +306,7 @@ components:
       type: object
       description: >-
         A catalog resource reference, as accepted by POST/PUT, persisted and
-        exported (SourceTypeInput.CATALOG_RESOURCE).
+        exported.
       required:
         - type
         - domain
@@ -322,9 +322,9 @@ components:
           $ref: '#/components/schemas/rasterUniqueness'
     capability:
       type: object
+      nullable: true
       description: >-
-        MapProxy WMTS capability of a catalog layer (same shape as the BFF
-        GraphQL `Capability` / catalog-app CapabilityModelType).
+        MapProxy WMTS capability of a catalog layer.
       required:
         - id
       properties:
@@ -378,6 +378,7 @@ components:
                 type: string
     layerRasterRecord:
       type: object
+      nullable: true
       description: >-
         The resolved catalog layer record (locally-defined
         LayerRasterRecordModelType fields; other record fields pass through).
@@ -417,52 +418,65 @@ components:
               url:
                 type: string
       additionalProperties: true
-    resolvedCatalogResourceLayerSource:
+    status:
+      type: string
+      description: Resolution state of a layer source in read responses.
+      enum:
+        - RESOLVED
+        - UNRESOLVED
+    catalogResourceLayerSourceOutput:
       type: object
       description: >
-        A catalog resource resolved at read time. Returned only when both the
-        catalog record and its MapProxy capability were found
-        (SourceTypeOutput.RESOLVED_CATALOG_RESOURCE).
+        A catalog resource as returned by reads, write responses and the import
+        review. Keeps its original reference. status is RESOLVED only when both
+        the catalog record and its map server capability were found (layer and
+        capabilities are then set); otherwise status is UNRESOLVED and layer and
+        capabilities are null.
       required:
         - type
         - domain
+        - uniqueness
+        - status
         - layer
         - capabilities
       properties:
         type:
           type: string
           enum:
-            - RESOLVED_CATALOG_RESOURCE
-        domain:
-          $ref: '#/components/schemas/domain'
-        layer:
-          $ref: '#/components/schemas/layerRasterRecord'
-        capabilities:
-          $ref: '#/components/schemas/capability'
-    unresolvedCatalogResourceLayerSource:
-      type: object
-      description: >
-        A catalog resource whose record, WMTS link or MapProxy capability could
-        not be found at read time
-        (SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE). Carries the original
-        reference; never accepted by writes.
-      required:
-        - type
-        - domain
-        - uniqueness
-      properties:
-        type:
-          type: string
-          enum:
-            - UNRESOLVED_CATALOG_RESOURCE
+            - CATALOG_RESOURCE
         domain:
           $ref: '#/components/schemas/domain'
         uniqueness:
           $ref: '#/components/schemas/rasterUniqueness'
+        status:
+          $ref: '#/components/schemas/status'
+        layer:
+          $ref: '#/components/schemas/layerRasterRecord'
+        capabilities:
+          $ref: '#/components/schemas/capability'
+    externalLayerSourceOutput:
+      type: object
+      description: >-
+        An externally-served layer as returned by reads. External layers need no
+        resolution, so status is always RESOLVED.
+      required:
+        - type
+        - status
+        - details
+      properties:
+        type:
+          type: string
+          enum:
+            - EXTERNAL
+        status:
+          type: string
+          enum:
+            - RESOLVED
+        details:
+          $ref: '#/components/schemas/externalLayerDetails'
     basemapLayerSourceInput:
       description: >-
-        A Basemap layer's source, as accepted by POST/PUT (SourceTypeInput
-        only).
+        A Basemap layer's source, as accepted by POST/PUT.
       oneOf:
         - $ref: '#/components/schemas/catalogResourceLayerSource'
         - $ref: '#/components/schemas/externalLayerSource'
@@ -474,17 +488,15 @@ components:
     basemapLayerSourceOutput:
       description: >-
         A Basemap layer's source, as returned by reads, write responses and the
-        import review (SourceTypeOutput only).
+        import review.
       oneOf:
-        - $ref: '#/components/schemas/resolvedCatalogResourceLayerSource'
-        - $ref: '#/components/schemas/unresolvedCatalogResourceLayerSource'
-        - $ref: '#/components/schemas/externalLayerSource'
+        - $ref: '#/components/schemas/catalogResourceLayerSourceOutput'
+        - $ref: '#/components/schemas/externalLayerSourceOutput'
       discriminator:
         propertyName: type
         mapping:
-          RESOLVED_CATALOG_RESOURCE: '#/components/schemas/resolvedCatalogResourceLayerSource'
-          UNRESOLVED_CATALOG_RESOURCE: '#/components/schemas/unresolvedCatalogResourceLayerSource'
-          EXTERNAL: '#/components/schemas/externalLayerSource'
+          CATALOG_RESOURCE: '#/components/schemas/catalogResourceLayerSourceOutput'
+          EXTERNAL: '#/components/schemas/externalLayerSourceOutput'
     basemapLayerInput:
       type: object
       required:
@@ -565,8 +577,8 @@ components:
     basemapWriteInput:
       type: object
       description: >-
-        Same shape as a persisted Basemap, minus the server-assigned id. Layer
-        sources use SourceTypeInput only (catalog resources as references).
+        Same shape as a persisted Basemap, minus the server-assigned id. Catalog
+        layer sources are references (no status, layer or capabilities).
       required:
         - name
         - thumbnail
@@ -590,20 +602,10 @@ components:
     importReviewLayer:
       description: >
         One layer of an imported package, resolved against this environment
-        exactly like a GET (output source types only). An
-        UNRESOLVED_CATALOG_RESOURCE source carries the dangling reference the
-        user must resolve/replace or remove before saving.
+        exactly like a GET. A catalog source with status UNRESOLVED carries the
+        dangling reference the user must resolve/replace or remove before saving.
       allOf:
         - $ref: '#/components/schemas/basemapLayerOutput'
-        - type: object
-          required:
-            - status
-          properties:
-            status:
-              type: string
-              enum:
-                - RESOLVED
-                - UNRESOLVED
     importReviewRoleConflict:
       type: object
       required:

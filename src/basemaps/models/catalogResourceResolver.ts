@@ -6,10 +6,11 @@ import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } fro
 import type { CapabilityModelType, LayerRasterRecordModelType } from './catalogTypes';
 import {
   SourceType,
-  SourceTypeOutput,
+  Status,
   type IBasemapLayerSourceInput,
   type IBasemapLayerSourceOutput,
   type ICatalogResourceLayerSource,
+  type IUnresolvedCatalogResourceLayerSource,
 } from './types';
 
 const WMTS_PROTOCOL = 'WMTS';
@@ -43,7 +44,7 @@ export class CatalogResourceResolver {
         case SourceType.CATALOG_RESOURCE:
           return this.resolveCatalogResource(source, getCapabilities);
         case SourceType.EXTERNAL:
-          return { type: SourceTypeOutput.EXTERNAL, details: source.details };
+          return { type: SourceType.EXTERNAL, status: Status.RESOLVED, details: source.details };
         default:
           throw new Error(`persisted layer source has an unsupported type "${String((source as { type?: unknown }).type)}"`);
       }
@@ -54,11 +55,8 @@ export class CatalogResourceResolver {
     source: ICatalogResourceLayerSource,
     getCapabilities: () => Promise<CapabilityModelType[]>
   ): Promise<IBasemapLayerSourceOutput> {
-    const unresolved: IBasemapLayerSourceOutput = {
-      type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE,
-      domain: source.domain,
-      uniqueness: source.uniqueness,
-    };
+    const reference = { type: SourceType.CATALOG_RESOURCE, domain: source.domain, uniqueness: source.uniqueness } as const;
+    const unresolved: IUnresolvedCatalogResourceLayerSource = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };
 
     const layer = await this.rasterCatalogClient.resolveLayer(source.domain, source.uniqueness);
     if (layer === null) {
@@ -74,7 +72,7 @@ export class CatalogResourceResolver {
       this.logger.warn({ msg: 'no MapProxy capability matches the catalog record - returned as unresolved', linkName, ...source.uniqueness });
       return unresolved;
     }
-    return { type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE, domain: source.domain, layer, capabilities };
+    return { ...reference, status: Status.RESOLVED, layer, capabilities };
   }
 }
 

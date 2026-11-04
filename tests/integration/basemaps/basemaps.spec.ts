@@ -9,7 +9,7 @@ import { createRequestSender, type RequestSender } from '@map-colonies/openapi-s
 import type { Application } from 'express';
 import type { paths, operations } from '@openapi';
 import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
-import { SourceType, SourceTypeOutput } from '@src/basemaps/models/types';
+import { SourceType, Status } from '@src/basemaps/models/types';
 import { getApp } from '@src/app';
 import { SERVICES } from '@common/constants';
 import { initConfig } from '@src/common/config';
@@ -350,14 +350,39 @@ describe('basemaps', () => {
       const body = response.body as { layers: { source: unknown }[] };
 
       expect(body.layers[0]?.source).toEqual({
-        type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE,
+        type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
+        uniqueness: { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO },
+        status: Status.RESOLVED,
         layer: RESOLVED_LAYER,
         capabilities: CAPABILITY,
       });
     });
 
-    it('returns the layer as UNRESOLVED_CATALOG_RESOURCE when MapProxy has no matching capability', async () => {
+    it('returns an external layer as RESOLVED with its details unchanged on GET', async () => {
+      const thumbnail = await uploadThumbnail();
+      const details = { protocol: 'WMTS' as const, name: 'osm', url: 'https://example.com/wmts', layer: 'ortho' };
+      const createResponse = await requestSender.createBasemap({
+        requestBody: {
+          name: 'External',
+          thumbnail,
+          isCurrent: false,
+          isForPreview: false,
+          layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: SourceType.EXTERNAL, details } }],
+        },
+      });
+      const basemapId = (createResponse.body as { id: string }).id;
+
+      const response = await requestSender.getBasemap({ pathParams: { basemapId } });
+
+      expect(response).toSatisfyApiSpec();
+
+      const body = response.body as { layers: { source: unknown }[] };
+
+      expect(body.layers[0]?.source).toEqual({ type: SourceType.EXTERNAL, status: Status.RESOLVED, details });
+    });
+
+    it('returns the layer as UNRESOLVED with null layer/capabilities when MapProxy has no matching capability', async () => {
       const basemapId = await createBasemapWithRasterLayer();
       mapServerClient.capabilities = [];
 
@@ -368,16 +393,19 @@ describe('basemaps', () => {
       const body = response.body as { layers: { source: unknown }[] };
 
       expect(body.layers[0]?.source).toEqual({
-        type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE,
+        type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
         uniqueness: { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO },
+        status: Status.UNRESOLVED,
+        layer: null,
+        capabilities: null,
       });
     });
 
     it.each([
-      ['an output-only RESOLVED_CATALOG_RESOURCE', { type: 'RESOLVED_CATALOG_RESOURCE', domain: 'RASTER', layer: {}, capabilities: { id: 'x' } }],
+      ['the obsolete RESOLVED_CATALOG_RESOURCE type', { type: 'RESOLVED_CATALOG_RESOURCE', domain: 'RASTER', layer: {}, capabilities: { id: 'x' } }],
       [
-        'an output-only UNRESOLVED_CATALOG_RESOURCE',
+        'the obsolete UNRESOLVED_CATALOG_RESOURCE type',
         { type: 'UNRESOLVED_CATALOG_RESOURCE', domain: 'RASTER', uniqueness: { productId: 'p', productType: 'Orthophoto' } },
       ],
       ['the legacy RASTER_RESOURCE shape', { type: 'RASTER_RESOURCE', productId: 'p', productType: 'Orthophoto' }],
@@ -425,13 +453,16 @@ describe('basemaps', () => {
 
       expect(response).toSatisfyApiSpec();
 
-      const body = response.body as { layers: { status: string; source: unknown }[] };
+      const body = response.body as { layers: Record<string, unknown>[] };
 
-      expect(body.layers[0]?.status).toBe('UNRESOLVED');
+      expect(body.layers[0]).not.toHaveProperty('status');
       expect(body.layers[0]?.source).toEqual({
-        type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE,
+        type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
         uniqueness: { productId: 'unknown-product', productType: ProductType.ORTHOPHOTO },
+        status: Status.UNRESOLVED,
+        layer: null,
+        capabilities: null,
       });
 
       const listResponse = await requestSender.listBasemaps();

@@ -2,7 +2,7 @@ import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { Domain, ProductType, type CapabilityModelType, type LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
-import { SourceType, SourceTypeOutput, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
+import { SourceType, Status, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 
@@ -22,7 +22,14 @@ const CATALOG_SOURCE: ICatalogResourceLayerSource = {
   domain: Domain.RASTER,
   uniqueness: { productId: '12345', productType: ProductType.ORTHOPHOTO },
 };
-const UNRESOLVED = { type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: CATALOG_SOURCE.uniqueness };
+const UNRESOLVED = {
+  type: SourceType.CATALOG_RESOURCE,
+  domain: Domain.RASTER,
+  uniqueness: CATALOG_SOURCE.uniqueness,
+  status: Status.UNRESOLVED,
+  layer: null,
+  capabilities: null,
+};
 
 describe('CatalogResourceResolver', () => {
   let rasterCatalogClient: { resolveLayer: ReturnType<typeof vi.fn<IRasterCatalogClient['resolveLayer']>> };
@@ -35,10 +42,12 @@ describe('CatalogResourceResolver', () => {
     resolver = new CatalogResourceResolver(rasterCatalogClient, mapServerClient, await jsLogger({ enabled: false }));
   });
 
-  it('resolves a catalog resource into its record and the capability matching its WMTS link name', async () => {
+  it('resolves a catalog resource into its record and the capability matching its WMTS link name, keeping its reference', async () => {
     await expect(resolver.createScope()(CATALOG_SOURCE)).resolves.toEqual({
-      type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE,
+      type: SourceType.CATALOG_RESOURCE,
       domain: Domain.RASTER,
+      uniqueness: CATALOG_SOURCE.uniqueness,
+      status: Status.RESOLVED,
       layer: RECORD,
       capabilities: CAPABILITY,
     });
@@ -78,13 +87,17 @@ describe('CatalogResourceResolver', () => {
     expect(mapServerClient.getCapabilities).toHaveBeenCalledTimes(1);
   });
 
-  it('returns an external source with its details unchanged, without any catalog or MapProxy lookup', async () => {
+  it('returns an external source as RESOLVED with its details unchanged, without any catalog or MapProxy lookup', async () => {
     const external: IExternalLayerSourceInput = {
       type: SourceType.EXTERNAL,
       details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho' },
     };
 
-    await expect(resolver.createScope()(external)).resolves.toEqual({ type: SourceTypeOutput.EXTERNAL, details: external.details });
+    await expect(resolver.createScope()(external)).resolves.toEqual({
+      type: SourceType.EXTERNAL,
+      status: Status.RESOLVED,
+      details: external.details,
+    });
     expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
     expect(mapServerClient.getCapabilities).not.toHaveBeenCalled();
   });
