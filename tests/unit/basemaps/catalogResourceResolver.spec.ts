@@ -2,7 +2,7 @@ import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { Domain, ProductType, type CapabilityModelType, type LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
-import { SourceTypeInput, SourceTypeOutput, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
+import { SourceType, SourceTypeOutput, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 
@@ -18,7 +18,7 @@ const RECORD: LayerRasterRecordModelType = {
 };
 const CAPABILITY: CapabilityModelType = { id: LINK_NAME, format: ['image/jpeg'] };
 const CATALOG_SOURCE: ICatalogResourceLayerSource = {
-  type: SourceTypeInput.CATALOG_RESOURCE,
+  type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,
   uniqueness: { productId: '12345', productType: ProductType.ORTHOPHOTO },
 };
@@ -80,7 +80,7 @@ describe('CatalogResourceResolver', () => {
 
   it('returns an external source with its details unchanged, without any catalog or MapProxy lookup', async () => {
     const external: IExternalLayerSourceInput = {
-      type: SourceTypeInput.EXTERNAL,
+      type: SourceType.EXTERNAL,
       details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho' },
     };
 

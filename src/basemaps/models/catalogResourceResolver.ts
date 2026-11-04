@@ -5,7 +5,7 @@ import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/r
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 import type { CapabilityModelType, LayerRasterRecordModelType } from './catalogTypes';
 import {
-  SourceTypeInput,
+  SourceType,
   SourceTypeOutput,
   type IBasemapLayerSourceInput,
   type IBasemapLayerSourceOutput,
@@ -40,9 +40,9 @@ export class CatalogResourceResolver {
 
     return async (source) => {
       switch (source.type) {
-        case SourceTypeInput.CATALOG_RESOURCE:
+        case SourceType.CATALOG_RESOURCE:
           return this.resolveCatalogResource(source, getCapabilities);
-        case SourceTypeInput.EXTERNAL:
+        case SourceType.EXTERNAL:
           return { type: SourceTypeOutput.EXTERNAL, details: source.details };
         default:
           throw new Error(`persisted layer source has an unsupported type "${String((source as { type?: unknown }).type)}"`);

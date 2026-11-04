@@ -9,7 +9,7 @@ import { createRequestSender, type RequestSender } from '@map-colonies/openapi-s
 import type { Application } from 'express';
 import type { paths, operations } from '@openapi';
 import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
-import { SourceTypeInput, SourceTypeOutput } from '@src/basemaps/models/types';
+import { SourceType, SourceTypeOutput } from '@src/basemaps/models/types';
 import { getApp } from '@src/app';
 import { SERVICES } from '@common/constants';
 import { initConfig } from '@src/common/config';
@@ -238,7 +238,7 @@ describe('basemaps', () => {
               id: 'l1',
               order: 0,
               opacity: 2,
-              source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: 'https://example.com/{z}/{x}/{y}' } },
+              source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: 'https://example.com/{z}/{x}/{y}' } },
             },
           ],
         },
@@ -307,7 +307,7 @@ describe('basemaps', () => {
               order: 0,
               opacity: 1,
               source: {
-                type: SourceTypeInput.CATALOG_RESOURCE,
+                type: SourceType.CATALOG_RESOURCE,
                 domain: Domain.RASTER,
                 uniqueness: { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO },
               },
@@ -334,7 +334,7 @@ describe('basemaps', () => {
 
       // the portable form is the canonical input source - no environment-specific id, no resolved layer.
       expect(manifest.layers[0]?.source).toEqual({
-        type: SourceTypeInput.CATALOG_RESOURCE,
+        type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
         uniqueness: { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO },
       });
@@ -404,7 +404,7 @@ describe('basemaps', () => {
             order: 0,
             opacity: 1,
             source: {
-              type: SourceTypeInput.CATALOG_RESOURCE,
+              type: SourceType.CATALOG_RESOURCE,
               domain: Domain.RASTER,
               uniqueness: { productId: 'unknown-product', productType: ProductType.ORTHOPHOTO },
             },

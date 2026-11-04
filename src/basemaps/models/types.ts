@@ -5,7 +5,7 @@ export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
 export const PROTOCOLS: readonly ProtocolType[] = Object.values(ProtocolType);
 
-export enum SourceTypeInput {
+export enum SourceType {
   CATALOG_RESOURCE = 'CATALOG_RESOURCE',
   EXTERNAL = 'EXTERNAL',
 }
@@ -35,7 +35,7 @@ export interface IExternalLayerDetails {
 }
 
 export interface IExternalLayerSourceInput {
-  type: SourceTypeInput.EXTERNAL;
+  type: SourceType.EXTERNAL;
   details: IExternalLayerDetails;
 }
 
@@ -45,7 +45,7 @@ export interface IExternalLayerSourceOutput {
 }
 
 export interface ICatalogResourceLayerSource {
-  type: SourceTypeInput.CATALOG_RESOURCE;
+  type: SourceType.CATALOG_RESOURCE;
   domain: Domain.RASTER;
   uniqueness: IRasterUniqueness;
 }

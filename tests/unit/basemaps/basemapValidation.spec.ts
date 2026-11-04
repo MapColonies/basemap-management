@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
-import { SourceTypeInput } from '@src/basemaps/models/types';
+import { SourceType } from '@src/basemaps/models/types';
 import { validateBasemapWriteInput } from '@src/basemaps/models/basemapValidation';
 import type { IBasemapLayerInput, IBasemapWriteInput } from '@src/basemaps/models/types';
 
@@ -16,7 +16,7 @@ function baseInput(): IBasemapWriteInput {
         order: 0,
         opacity: 1,
         source: {
-          type: SourceTypeInput.CATALOG_RESOURCE,
+          type: SourceType.CATALOG_RESOURCE,
           domain: Domain.RASTER,
           uniqueness: { productId: '12345', productType: ProductType.ORTHOPHOTO },
         },
@@ -25,7 +25,7 @@ function baseInput(): IBasemapWriteInput {
         id: 'layer-2',
         order: 1,
         opacity: 0.7,
-        source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: 'Google Satellite', url: 'https://example.com/{z}/{x}/{y}' } },
+        source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: 'Google Satellite', url: 'https://example.com/{z}/{x}/{y}' } },
       },
     ],
   };
@@ -71,7 +71,7 @@ describe('validateBasemapWriteInput', () => {
     const input = baseInput();
     input.layers[0] = {
       ...layerAt(input, 0),
-      source: { type: SourceTypeInput.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: { productId: '', productType: ProductType.ORTHOPHOTO } },
+      source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: { productId: '', productType: ProductType.ORTHOPHOTO } },
     };
     expect(() => validateBasemapWriteInput(input)).toThrow(/productId/);
   });
@@ -81,7 +81,7 @@ describe('validateBasemapWriteInput', () => {
     input.layers[0] = {
       ...layerAt(input, 0),
       source: {
-        type: SourceTypeInput.CATALOG_RESOURCE,
+        type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
         uniqueness: { productId: '12345', productType: 'NotARealProductType' as ProductType },
       },
@@ -93,7 +93,7 @@ describe('validateBasemapWriteInput', () => {
     const input = baseInput();
     input.layers[1] = {
       ...layerAt(input, 1),
-      source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'FTP' as 'XYZ', name: 'n', url: 'https://example.com' } },
+      source: { type: SourceType.EXTERNAL, details: { protocol: 'FTP' as 'XYZ', name: 'n', url: 'https://example.com' } },
     };
     expect(() => validateBasemapWriteInput(input)).toThrow(/protocol/);
   });
@@ -102,14 +102,14 @@ describe('validateBasemapWriteInput', () => {
     const input = baseInput();
     input.layers[1] = {
       ...layerAt(input, 1),
-      source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: '', url: 'https://example.com' } },
+      source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: '', url: 'https://example.com' } },
     };
     expect(() => validateBasemapWriteInput(input)).toThrow(/name/);
   });
 
   it('rejects an EXTERNAL layer missing details.url', () => {
     const input = baseInput();
-    input.layers[1] = { ...layerAt(input, 1), source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: '' } } };
+    input.layers[1] = { ...layerAt(input, 1), source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: '' } } };
     expect(() => validateBasemapWriteInput(input)).toThrow(/url/);
   });
 
@@ -118,7 +118,7 @@ describe('validateBasemapWriteInput', () => {
     input.layers[1] = {
       ...layerAt(input, 1),
       source: {
-        type: SourceTypeInput.EXTERNAL,
+        type: SourceType.EXTERNAL,
         details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho', matrixSet: 'EPSG:3857' },
       },
     };

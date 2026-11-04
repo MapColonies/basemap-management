@@ -2,7 +2,7 @@ import jsZip from 'jszip';
 import { ValidationError } from '@common/errors';
 import { sniffImage } from '../thumbnails/imageFormat';
 import { Domain } from '../models/catalogTypes';
-import { PROTOCOLS, SourceTypeInput, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
+import { PROTOCOLS, SourceType, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
 import type { IBasemapLayerInput, IImportPackageThumbnail, IPortableBasemap } from '../models/types';
 
 const MAX_ENTRIES = 10;
@@ -43,7 +43,7 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
   }
   const source = candidate.source as { type?: unknown };
   switch (source.type) {
-    case SourceTypeInput.CATALOG_RESOURCE: {
+    case SourceType.CATALOG_RESOURCE: {
       const catalogSource = source as { domain?: unknown; uniqueness?: unknown };
       if (catalogSource.domain !== Domain.RASTER) {
         throw new ValidationError(`layers[${index}].source.domain must be ${Domain.RASTER}`);
@@ -54,7 +54,7 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
       }
       break;
     }
-    case SourceTypeInput.EXTERNAL: {
+    case SourceType.EXTERNAL: {
       const externalSource = source as { details?: unknown };
       if (typeof externalSource.details !== 'object' || externalSource.details === null) {
         throw new ValidationError(`layers[${index}].source is missing details`);

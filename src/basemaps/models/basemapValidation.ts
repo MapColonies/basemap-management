@@ -1,6 +1,6 @@
 import { ValidationError } from '@common/errors';
 import { ProductType } from './catalogTypes';
-import { PROTOCOLS, SourceTypeInput } from './types';
+import { PROTOCOLS, SourceType } from './types';
 import type { IBasemapLayerInput, IBasemapWriteInput } from './types';
 
 const MIN_OPACITY = 0;
@@ -13,7 +13,7 @@ function validateLayer(layer: IBasemapLayerInput): void {
   }
 
   switch (layer.source.type) {
-    case SourceTypeInput.CATALOG_RESOURCE:
+    case SourceType.CATALOG_RESOURCE:
       if (layer.source.uniqueness.productId.length === 0) {
         throw new ValidationError(`layer "${layer.id}" is missing uniqueness.productId`);
       }
@@ -21,7 +21,7 @@ function validateLayer(layer: IBasemapLayerInput): void {
         throw new ValidationError(`layer "${layer.id}" has an unknown uniqueness.productType "${layer.source.uniqueness.productType}"`);
       }
       break;
-    case SourceTypeInput.EXTERNAL:
+    case SourceType.EXTERNAL:
       if (!PROTOCOLS.includes(layer.source.details.protocol)) {
         throw new ValidationError(`layer "${layer.id}" has an unknown protocol "${layer.source.details.protocol}"`);
       }
