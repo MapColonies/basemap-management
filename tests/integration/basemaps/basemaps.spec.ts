@@ -358,6 +358,21 @@ describe('basemaps', () => {
       });
     });
 
+    it('accepts a read response sent back as an update and persists only the input contract', async () => {
+      const basemapId = await createBasemapWithRasterLayer();
+      const read = (await requestSender.getBasemap({ pathParams: { basemapId } })).body as Record<string, unknown> & { layers: unknown[] };
+      const response = await request(app)
+        .put(`/basemaps/${basemapId}`)
+        .send({ ...read, id: undefined });
+
+      expect(response.status).toBe(httpStatusCodes.OK);
+      expect(configServerClient.document.basemaps[0]?.layers[0]?.source).toEqual({
+        type: SourceType.CATALOG_RESOURCE,
+        domain: Domain.RASTER,
+        uniqueness: { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO },
+      });
+    });
+
     it('returns an external layer as RESOLVED with its details unchanged on GET', async () => {
       const thumbnail = await uploadThumbnail();
       const details = { protocol: 'WMTS' as const, name: 'osm', url: 'https://example.com/wmts', layer: 'ortho' };

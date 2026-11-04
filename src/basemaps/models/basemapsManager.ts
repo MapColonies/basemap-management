@@ -7,7 +7,14 @@ import { CONFIG_SERVER_CLIENT, type IConfigServerClient } from '@src/clients/con
 import { applyDefaultRoles, assertSingleOwnerPerRole } from './defaultRolePolicy';
 import { validateBasemapWriteInput } from './basemapValidation';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
-import type { IBasemap, IBasemapLayerInput, IBasemapLayerOutput, IBasemapWriteInput, IPersistedBasemap } from './types';
+import {
+  SourceType,
+  type IBasemap,
+  type IBasemapLayerInput,
+  type IBasemapLayerOutput,
+  type IBasemapWriteInput,
+  type IPersistedBasemap,
+} from './types';
 
 @injectable()
 class BasemapsManager {
@@ -45,7 +52,7 @@ class BasemapsManager {
         thumbnail: input.thumbnail,
         isCurrent: false,
         isForPreview: false,
-        layers: input.layers,
+        layers: input.layers.map(toPersistedLayer),
       };
       const next = applyDefaultRoles([...basemaps, persisted], id, { isCurrent: input.isCurrent, isForPreview: input.isForPreview });
       this.logger.info({ msg: 'basemap created', basemapId: id });
@@ -61,7 +68,7 @@ class BasemapsManager {
       if (!basemaps.some((candidate) => candidate.id === id)) {
         throw new NotFoundError(`basemap "${id}" was not found`);
       }
-      const merged = basemaps.map((candidate) => (candidate.id === id ? { ...input, id } : candidate));
+      const merged = basemaps.map((candidate) => (candidate.id === id ? { ...input, id, layers: input.layers.map(toPersistedLayer) } : candidate));
       const next = applyDefaultRoles(merged, id, { isCurrent: input.isCurrent, isForPreview: input.isForPreview });
       this.logger.info({ msg: 'basemap updated', basemapId: id });
       return { next, result: getOrThrow(next, id) };
@@ -104,11 +111,6 @@ class BasemapsManager {
     return { id: layer.id, order: layer.order, opacity: layer.opacity, shouldBeUsedInModelDraping: layer.shouldBeUsedInModelDraping, source };
   }
 
-  /**
-   * Runs `fn` against the latest document under the in-process write lock, asserts role invariants
-   * on the result, persists it, and returns `fn`'s result. `fn` may throw (e.g. NotFoundError) - the
-   * lock is released either way and nothing is persisted when it does.
-   */
   private async mutate<T>(fn: (basemaps: IPersistedBasemap[]) => { next: IPersistedBasemap[]; result: T }): Promise<T> {
     const run = async (): Promise<T> => {
       const { document, version } = await this.configServerClient.getLatest();
@@ -125,6 +127,18 @@ class BasemapsManager {
     );
     return resultPromise;
   }
+}
+
+function toPersistedLayer({ id, order, opacity, shouldBeUsedInModelDraping, source }: IBasemapLayerInput): IBasemapLayerInput {
+  const persistedSource: IBasemapLayerInput['source'] =
+    source.type === SourceType.CATALOG_RESOURCE
+      ? {
+          type: source.type,
+          domain: source.domain,
+          uniqueness: { productId: source.uniqueness.productId, productType: source.uniqueness.productType },
+        }
+      : { type: source.type, details: source.details };
+  return { id, order, opacity, shouldBeUsedInModelDraping, source: persistedSource };
 }
 
 function getOrThrow(basemaps: IPersistedBasemap[], id: string): IPersistedBasemap {
