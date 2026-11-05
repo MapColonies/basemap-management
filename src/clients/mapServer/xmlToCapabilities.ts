@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention -- field names dictated by the OGC WMTS capabilities XML schema */
 import { XMLParser } from 'fast-xml-parser';
+import type { Logger } from '@map-colonies/js-logger';
+import { CapabilitySchema } from '@map-colonies/types';
 import type { CapabilityModelType } from '@src/basemaps/models/catalogTypes';
 
 interface IXmlAttr {
@@ -53,7 +55,7 @@ const parser = new XMLParser({
   isArray: (_tagName: string, jPath: unknown): boolean => typeof jPath === 'string' && ARRAY_PATHS.some((path) => jPath.endsWith(path)),
 });
 
-export function xmlToCapabilities(xmlData: string): CapabilityModelType[] {
+export function xmlToCapabilities(xmlData: string, logger: Logger): CapabilityModelType[] {
   const json = parser.parse(xmlData) as IXmlCapabilities;
   const contents = json.Capabilities?.Contents;
 
@@ -68,7 +70,7 @@ export function xmlToCapabilities(xmlData: string): CapabilityModelType[] {
     }
   });
 
-  return (contents?.Layer ?? []).flatMap((layer): CapabilityModelType[] => {
+  const candidates: unknown[] = (contents?.Layer ?? []).flatMap((layer) => {
     const id = layer['ows:Identifier'];
     if (id === undefined) {
       return [];
@@ -78,7 +80,7 @@ export function xmlToCapabilities(xmlData: string): CapabilityModelType[] {
         id,
         style: (layer.Style ?? []).map((style) => {
           const isDefault = style.attr?.isDefault;
-          return { value: String(style['ows:Identifier']), ...(isDefault === 'true' ? { isDefault } : {}) };
+          return { value: String(style['ows:Identifier']), isDefault: isDefault === 'true' ? isDefault : null };
         }),
         format: layer.Format ?? [],
         tileMatrixSet: (layer.TileMatrixSetLink ?? []).flatMap((link) => {
@@ -98,4 +100,29 @@ export function xmlToCapabilities(xmlData: string): CapabilityModelType[] {
       },
     ];
   });
+
+  const valid: CapabilityModelType[] = [];
+  let failedCount = 0;
+  candidates.forEach((candidate) => {
+    const result = CapabilitySchema.safeParse(candidate);
+    if (result.success) {
+      valid.push(result.data);
+    } else {
+      failedCount += 1;
+      logger.warn({
+        msg: 'capability failed schema validation and was dropped',
+        id: (candidate as { id?: unknown }).id,
+        issues: result.error.message,
+      });
+    }
+  });
+  if (candidates.length > 0 && failedCount === candidates.length) {
+    logger.error({
+      msg: 'all capabilities failed schema validation - possible contract mismatch with @map-colonies/types',
+      failedCount,
+      total: candidates.length,
+    });
+  }
+
+  return valid;
 }

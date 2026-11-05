@@ -1,3 +1,5 @@
+import type { Capability as CapabilityContract } from '@map-colonies/types';
+
 export enum Domain {
   RASTER = 'RASTER',
   // eslint-disable-next-line @typescript-eslint/naming-convention -- value dictated by the shared Domain enum
@@ -48,10 +50,4 @@ export interface LayerRasterRecordModelType {
   [key: string]: unknown;
 }
 
-export interface CapabilityModelType {
-  id: string;
-  style?: { value: string; isDefault?: string | null }[];
-  format?: string[];
-  tileMatrixSet?: { tileMatrixSetID: string; tileMatrixLabels: string[] }[];
-  url?: { format: string; resourceType: string; template: string }[];
-}
+export type CapabilityModelType = CapabilityContract;

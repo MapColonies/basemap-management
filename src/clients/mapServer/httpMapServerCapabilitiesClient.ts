@@ -28,7 +28,7 @@ export class HttpMapServerCapabilitiesClient implements IMapServerCapabilitiesCl
     if (!response.ok) {
       throw new UpstreamServiceError(`MapProxy capabilities request failed: HTTP ${response.status}`);
     }
-    const capabilities = xmlToCapabilities(await response.text());
+    const capabilities = xmlToCapabilities(await response.text(), this.logger);
     this.logger.debug({ msg: 'MapProxy capabilities fetched', layerCount: capabilities.length });
     return capabilities;
   }
