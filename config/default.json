@@ -32,5 +32,11 @@
         "options": null
       }
     }
+  },
+  "rasterCatalog": {
+    "url": "https://raster-serving-pycsw-private-nginx-route-manual-integration.apps.j1lk3njp.eastus.aroapp.io/api/raster/v1"
+  },
+  "mapServer": {
+    "url": "https://raster-serving-int-mapproxy-nginx-route-manual-integration.apps.j1lk3njp.eastus.aroapp.io/api/raster/v1"
   }
 }
