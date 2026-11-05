@@ -2,7 +2,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { Logger } from '@map-colonies/js-logger';
 import { CapabilitySchema } from '@map-colonies/types';
-import type { CapabilityModelType } from '@src/basemaps/models/catalogTypes';
+import type { Capability } from '@map-colonies/types';
 
 interface IXmlAttr {
   attr?: Record<string, string>;
@@ -55,7 +55,7 @@ const parser = new XMLParser({
   isArray: (_tagName: string, jPath: unknown): boolean => typeof jPath === 'string' && ARRAY_PATHS.some((path) => jPath.endsWith(path)),
 });
 
-export function xmlToCapabilities(xmlData: string, logger: Logger): CapabilityModelType[] {
+export function xmlToCapabilities(xmlData: string, logger: Logger): Capability[] {
   const json = parser.parse(xmlData) as IXmlCapabilities;
   const contents = json.Capabilities?.Contents;
 
@@ -101,7 +101,7 @@ export function xmlToCapabilities(xmlData: string, logger: Logger): CapabilityMo
     ];
   });
 
-  const valid: CapabilityModelType[] = [];
+  const valid: Capability[] = [];
   let failedCount = 0;
   candidates.forEach((candidate) => {
     const result = CapabilitySchema.safeParse(candidate);

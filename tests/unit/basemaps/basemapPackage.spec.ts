@@ -1,6 +1,6 @@
 import jsZip from 'jszip';
 import { describe, it, expect } from 'vitest';
-import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
+import { Domain, ProductType } from '@map-colonies/types';
 import { SourceType } from '@src/basemaps/models/types';
 import { writeBasemapPackage } from '@src/basemaps/packaging/basemapPackageWriter';
 import { readBasemapPackage } from '@src/basemaps/packaging/basemapPackageReader';

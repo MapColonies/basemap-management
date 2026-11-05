@@ -7,8 +7,8 @@ import request from 'supertest';
 import type { Response as SuperagentResponse } from 'superagent';
 import { createRequestSender, type RequestSender } from '@map-colonies/openapi-supertest';
 import type { Application } from 'express';
+import { Domain, ProductType, type Capability } from '@map-colonies/types';
 import type { paths, operations } from '@openapi';
-import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
 import { SourceType, Status } from '@src/basemaps/models/types';
 import { getApp } from '@src/app';
 import { SERVICES } from '@common/constants';
@@ -17,7 +17,7 @@ import { CONFIG_SERVER_CLIENT, type IConfigServerClient, type IConfigServerDocum
 import { BLOB_STORAGE_CLIENT, type IBlobStorageClient, type IUploadBlobParams } from '@src/clients/blobStorage/blobStorageClient';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import type { CapabilityModelType, LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
+import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
 
 const DIMENSION = 128;
 const KNOWN_PRODUCT_ID = '12345';
@@ -27,7 +27,7 @@ const RESOLVED_LAYER: LayerRasterRecordModelType = {
   productName: 'France Satellite',
   links: [{ protocol: 'WMTS', name: WMTS_LINK_NAME, url: 'https://mapproxy/wmts' }],
 };
-const CAPABILITY: CapabilityModelType = {
+const CAPABILITY: Capability = {
   id: WMTS_LINK_NAME,
   style: [{ value: 'default', isDefault: 'true' }],
   format: ['image/jpeg'],
@@ -77,10 +77,10 @@ class FakeRasterCatalogClient implements IRasterCatalogClient {
 }
 
 class FakeMapServerCapabilitiesClient implements IMapServerCapabilitiesClient {
-  public capabilities: CapabilityModelType[] = [CAPABILITY];
+  public capabilities: Capability[] = [CAPABILITY];
 
   // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async getCapabilities(): Promise<CapabilityModelType[]> {
+  public async getCapabilities(): Promise<Capability[]> {
     return this.capabilities;
   }
 }

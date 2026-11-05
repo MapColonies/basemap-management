@@ -1,5 +1,6 @@
+import type { Capability, Domain, ProductType } from '@map-colonies/types';
 import { ProtocolType } from './catalogTypes';
-import type { CapabilityModelType, Domain, LayerRasterRecordModelType, ProductType } from './catalogTypes';
+import type { LayerRasterRecordModelType } from './catalogTypes';
 
 export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
@@ -61,7 +62,7 @@ export interface ICatalogResourceLayerSourceOutputBase {
 export interface IResolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {
   status: Status.RESOLVED;
   layer: LayerRasterRecordModelType;
-  capabilities: CapabilityModelType;
+  capabilities: Capability;
 }
 
 export interface IUnresolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {

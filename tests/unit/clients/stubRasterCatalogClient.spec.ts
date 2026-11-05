@@ -1,6 +1,6 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, it, expect } from 'vitest';
-import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
+import { Domain, ProductType } from '@map-colonies/types';
 import { StubRasterCatalogClient } from '@src/clients/rasterCatalog/stubRasterCatalogClient';
 
 describe('StubRasterCatalogClient', () => {

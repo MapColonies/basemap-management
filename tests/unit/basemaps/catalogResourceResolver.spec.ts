@@ -1,7 +1,8 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
+import { Domain, ProductType, type Capability } from '@map-colonies/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
-import { Domain, ProductType, type CapabilityModelType, type LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
+import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
 import { SourceType, Status, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
@@ -16,7 +17,7 @@ const RECORD: LayerRasterRecordModelType = {
     { protocol: 'WMTS', name: LINK_NAME, url: 'https://mapproxy/wmts' },
   ],
 };
-const CAPABILITY: CapabilityModelType = { id: LINK_NAME, format: ['image/jpeg'] };
+const CAPABILITY: Capability = { id: LINK_NAME, format: ['image/jpeg'] };
 const CATALOG_SOURCE: ICatalogResourceLayerSource = {
   type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,

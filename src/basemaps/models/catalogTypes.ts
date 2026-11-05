@@ -1,24 +1,4 @@
-import type { Capability as CapabilityContract } from '@map-colonies/types';
-
-export enum Domain {
-  RASTER = 'RASTER',
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  _3D = '3D',
-  DEM = 'DEM',
-  VECTOR = 'VECTOR',
-}
-
-export enum ProductType {
-  ORTHOPHOTO = 'Orthophoto',
-  ORTHOPHOTO_HISTORY = 'OrthophotoHistory',
-  ORTHOPHOTO_BEST = 'OrthophotoBest',
-  RASTER_MAP = 'RasterMap',
-  RASTER_MAP_BEST = 'RasterMapBest',
-  RASTER_AID = 'RasterAid',
-  RASTER_AID_BEST = 'RasterAidBest',
-  RASTER_VECTOR = 'RasterVector',
-  RASTER_VECTOR_BEST = 'RasterVectorBest',
-}
+import type { ProductType } from '@map-colonies/types';
 
 // eslint-disable-next-line @typescript-eslint/naming-convention -- const-object + type idiom mirrored from catalog-app
 export const ProtocolType = {
@@ -49,5 +29,3 @@ export interface LayerRasterRecordModelType {
   links?: LinkModelType[] | null;
   [key: string]: unknown;
 }
-
-export type CapabilityModelType = CapabilityContract;

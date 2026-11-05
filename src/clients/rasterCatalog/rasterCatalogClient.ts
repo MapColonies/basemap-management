@@ -1,4 +1,5 @@
-import type { Domain, LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
+import type { Domain } from '@map-colonies/types';
+import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
 import type { IResolvableRasterUniqueness } from '@src/basemaps/models/types';
 
 export interface IRasterCatalogClient {

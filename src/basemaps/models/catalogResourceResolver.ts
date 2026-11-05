@@ -1,9 +1,10 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
+import { ProductType, type Capability } from '@map-colonies/types';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import { ProductType, type CapabilityModelType, type LayerRasterRecordModelType } from './catalogTypes';
+import type { LayerRasterRecordModelType } from './catalogTypes';
 import {
   SourceType,
   Status,
@@ -16,7 +17,19 @@ import {
 } from './types';
 
 const WMTS_PROTOCOL = 'WMTS';
-const RASTER_PRODUCT_TYPES = new Set<string>(Object.values(ProductType));
+// shared ProductType spans all domains (raster/DEM/3D/vector) - this allowlist must stay an explicit
+// raster-only subset, not Object.values(ProductType), or non-raster product types would resolve here.
+const RASTER_PRODUCT_TYPES = new Set<string>([
+  ProductType.ORTHOPHOTO,
+  ProductType.ORTHOPHOTO_HISTORY,
+  ProductType.ORTHOPHOTO_BEST,
+  ProductType.RASTER_MAP,
+  ProductType.RASTER_MAP_BEST,
+  ProductType.RASTER_AID,
+  ProductType.RASTER_AID_BEST,
+  ProductType.RASTER_VECTOR,
+  ProductType.RASTER_VECTOR_BEST,
+]);
 
 function toResolvableUniqueness({ productId, productType }: IRasterUniqueness): IResolvableRasterUniqueness | undefined {
   if (typeof productId !== 'string' || productId.length === 0 || productType === undefined || !RASTER_PRODUCT_TYPES.has(productType)) {
@@ -39,8 +52,8 @@ export class CatalogResourceResolver {
   ) {}
 
   public createScope(): SourceResolver {
-    let capabilitiesPromise: Promise<CapabilityModelType[]> | undefined;
-    const getCapabilities = async (): Promise<CapabilityModelType[]> => {
+    let capabilitiesPromise: Promise<Capability[]> | undefined;
+    const getCapabilities = async (): Promise<Capability[]> => {
       capabilitiesPromise ??= this.mapServerClient.getCapabilities().catch((error: unknown) => {
         this.logger.warn({ msg: 'MapProxy capabilities unavailable - catalog layers will be returned as unresolved', err: error });
         return [];
@@ -62,7 +75,7 @@ export class CatalogResourceResolver {
 
   private async resolveCatalogResource(
     source: ICatalogResourceLayerSource,
-    getCapabilities: () => Promise<CapabilityModelType[]>
+    getCapabilities: () => Promise<Capability[]>
   ): Promise<IBasemapLayerSourceOutput> {
     const reference = { type: SourceType.CATALOG_RESOURCE, domain: source.domain, uniqueness: source.uniqueness } as const;
     const unresolved: IUnresolvedCatalogResourceLayerSource = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };

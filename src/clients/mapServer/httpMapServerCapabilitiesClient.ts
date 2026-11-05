@@ -1,9 +1,9 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
+import type { Capability } from '@map-colonies/types';
 import { SERVICES } from '@common/constants';
 import { UpstreamServiceError } from '@common/errors';
 import type { IBasemapManagementEnv } from '@common/env';
-import type { CapabilityModelType } from '@src/basemaps/models/catalogTypes';
 import type { IMapServerCapabilitiesClient } from './mapServerCapabilitiesClient';
 import { xmlToCapabilities } from './xmlToCapabilities';
 
@@ -21,7 +21,7 @@ export class HttpMapServerCapabilitiesClient implements IMapServerCapabilitiesCl
     this.capabilitiesUrl = baseUrl.endsWith(WMTS_CAPABILITIES_PATH) ? baseUrl : `${baseUrl}${WMTS_CAPABILITIES_PATH}`;
   }
 
-  public async getCapabilities(): Promise<CapabilityModelType[]> {
+  public async getCapabilities(): Promise<Capability[]> {
     const response = await fetch(this.capabilitiesUrl).catch((error: unknown) => {
       throw new UpstreamServiceError(`MapProxy capabilities request failed: ${String(error)}`);
     });
