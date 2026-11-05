@@ -1,20 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
+import { SourceType } from '@map-colonies/types';
 import { SERVICES } from '@common/constants';
 import { NotFoundError } from '@common/errors';
 import { CONFIG_SERVER_CLIENT, type IConfigServerClient } from '@src/clients/configServer/configServerClient';
 import { applyDefaultRoles, assertSingleOwnerPerRole } from './defaultRolePolicy';
 import { validateBasemapWriteInput } from './basemapValidation';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
-import {
-  SourceType,
-  type IBasemap,
-  type IBasemapLayerInput,
-  type IBasemapLayerOutput,
-  type IBasemapWriteInput,
-  type IPersistedBasemap,
-} from './types';
+import { type IBasemap, type IBasemapLayerInput, type IBasemapLayerOutput, type IBasemapWriteInput, type IPersistedBasemap } from './types';
 
 @injectable()
 class BasemapsManager {
