@@ -19,7 +19,7 @@ The service owns Basemap *configuration* only. It stores no tiles and no raster 
 flowchart LR
   client[REST client] -->|/basemaps| svc[basemap-management]
   svc -->|read / write basemaps document| cs[(config-server)]
-  svc -->|resolve catalog record| rc[Raster Catalog<br/><i>stub</i>]
+  svc -->|resolve catalog record| rc[Raster PyCSW]
   svc -->|WMTSCapabilities.xml| ms[MapProxy / map server]
   svc -.->|thumbnail upload| bs[Blob storage<br/><i>stub</i>]
 ```
@@ -34,7 +34,7 @@ Three concerns are kept separate:
 | --- | --- | --- |
 | config-server | `HttpConfigServerClient` | Implemented. `GET/POST {CONFIG_MANAGEMENT_URL}/api/config`. |
 | Map server (Raster MapProxy) | `HttpMapServerCapabilitiesClient` | Implemented. Fetches `{MAP_SERVER_URL}/wmts/1.0.0/WMTSCapabilities.xml` once per request. |
-| Raster Catalog | `StubRasterCatalogClient` | **Stub only.** Always returns "not found", so every catalog layer is `UNRESOLVED_CATALOG_RESOURCE`. `RASTER_CATALOG_MODE=http` is rejected at startup (no HTTP client exists). |
+| Raster Catalog | `HttpRasterCatalogClient` (`RASTER_CATALOG_MODE=http`) / `StubRasterCatalogClient` (`=stub`, default) | Implemented. Queries Raster PyCSW via `@map-colonies/csw-client`, filtering on `mc:productId` + `mc:productType`, mapping the result with `@map-colonies/mc-model-types`' `PycswLayerCatalogRecord.getPyCSWMappings()`. The stub always returns "not found". |
 | Blob storage / data-service | `StubBlobStorageClient` | **Stub only.** Keeps thumbnails in process memory and returns `memory://` URLs. `DATA_SERVICE_URL` is read but unused. |
 
 Source layout:
@@ -119,8 +119,8 @@ Read directly from `process.env` in [src/common/env.ts](src/common/env.ts). Inva
 | `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
 | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
 | `MAP_SERVER_URL` | `''` | Raster MapProxy base URL (maps to `mapServer.url` in the env object). `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present. If empty or unreachable, catalog layers come back `UNRESOLVED_CATALOG_RESOURCE`. |
-| `RASTER_CATALOG_MODE` | `stub` | `stub` or `http`. `http` is not implemented and aborts startup. |
-| `RASTER_CATALOG_URL` | `''` | Placeholder, unused while mode is `stub`. |
+| `RASTER_CATALOG_MODE` | `stub` | `stub` or `http`. `http` queries Raster PyCSW via `HttpRasterCatalogClient`. |
+| `RASTER_CATALOG_URL` | `''` | Raster PyCSW base URL. Unused while mode is `stub`. |
 | `DATA_SERVICE_URL` | `''` | Placeholder, unused. Thumbnails go to the in-memory stub. |
 | `THUMBNAIL_MAX_SIZE_BYTES` | `2097152` (2 MiB) | Max thumbnail upload size. |
 | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | `10485760` (10 MiB) | Max import package upload size. |
@@ -230,7 +230,7 @@ Input (accepted by `POST`/`PUT`, and what is persisted/exported) and output (ret
 
 A catalog layer is resolved only when all of these hold:
 
-1. The Raster Catalog returns a record for `uniqueness` (never true with the current stub).
+1. The Raster Catalog returns a record for `uniqueness` (always `null` with the stub; a real PyCSW lookup in `http` mode).
 2. The record has a `WMTS` link with a `name`.
 3. The map server's WMTS capabilities contain a layer whose `ows:Identifier` equals that link name.
 
@@ -335,7 +335,7 @@ npm run helm-uninstall
 | `configManagement.{name,version,offlineMode,serverUrl}` | `CONFIG_NAME`, `CONFIG_VERSION`, `CONFIG_OFFLINE_MODE`, `CONFIG_SERVER_URL` | `@map-colonies/config` bootstrap. |
 | `basemapManagement.configServer.{name,schemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
 | `basemapManagement.mapServer.url` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
-| `basemapManagement.rasterCatalog.{url,mode}` | `RASTER_CATALOG_URL`, `RASTER_CATALOG_MODE` | Keep `mode: stub`. |
+| `basemapManagement.rasterCatalog.{url,mode}` | `RASTER_CATALOG_URL`, `RASTER_CATALOG_MODE` | Set `mode: http` and `url` to the Raster PyCSW endpoint to resolve real catalog layers; `mode: stub` always returns unresolved. |
 | `basemapManagement.dataService.url` | `DATA_SERVICE_URL` | Placeholder. |
 | `basemapManagement.uploadLimits.*` | `THUMBNAIL_MAX_SIZE_BYTES`, `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
 | `env.*` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
@@ -359,8 +359,7 @@ Troubleshooting:
 
 | Symptom | Likely cause |
 | --- | --- |
-| Startup error `RASTER_CATALOG_MODE=http is not implemented yet` | Use `RASTER_CATALOG_MODE=stub` (or unset). |
 | `502` on every `/basemaps` call | config-server unreachable or returned an error. Check `CONFIG_MANAGEMENT_URL` (origin only). |
-| All catalog layers are `UNRESOLVED_CATALOG_RESOURCE` | Expected with the stub catalog. Otherwise check `MAP_SERVER_URL` and the warnings in the logs. |
+| All catalog layers are `UNRESOLVED_CATALOG_RESOURCE` | Expected with `RASTER_CATALOG_MODE=stub`. In `http` mode, check `RASTER_CATALOG_URL`, `MAP_SERVER_URL`, and the warn/error logs from `CatalogResourceResolver`/`HttpRasterCatalogClient`. |
 | Export returns `502` | The stored thumbnail URL cannot be fetched (e.g. a `memory://` URL). |
 | `config not initialized` / config schema errors at startup | Run with `npm run start:dev`, or provide `CONFIG_SERVER_URL`, `CONFIG_NAME`, `CONFIG_VERSION`. |

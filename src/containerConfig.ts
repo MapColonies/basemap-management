@@ -13,6 +13,7 @@ import { BLOB_STORAGE_CLIENT } from '@src/clients/blobStorage/blobStorageClient'
 import { StubBlobStorageClient } from '@src/clients/blobStorage/stubBlobStorageClient';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { StubRasterCatalogClient } from '@src/clients/rasterCatalog/stubRasterCatalogClient';
+import { HttpRasterCatalogClient } from '@src/clients/rasterCatalog/httpRasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 import { HttpMapServerCapabilitiesClient } from '@src/clients/mapServer/httpMapServerCapabilitiesClient';
 import { basemapsRouterFactory, BASEMAPS_ROUTER_SYMBOL } from './basemaps/routes/basemapsRouter';
@@ -25,7 +26,7 @@ interface RegisterOptions {
 
 function rasterCatalogClientProvider(mode: 'stub' | 'http', logger: Logger): InjectionObject<IRasterCatalogClient> {
   if (mode === 'http') {
-    throw new Error('RASTER_CATALOG_MODE=http is not implemented yet - no confirmed Raster Catalog contract exists. Use RASTER_CATALOG_MODE=stub.');
+    return { token: RASTER_CATALOG_CLIENT, provider: { useClass: HttpRasterCatalogClient } };
   }
   logger.warn({ msg: 'RasterCatalogClient running in stub mode - Raster resource resolution is unavailable' });
   return { token: RASTER_CATALOG_CLIENT, provider: { useClass: StubRasterCatalogClient } };

@@ -153,10 +153,10 @@ basemapManagement:
   dataService:
     url: ''
   rasterCatalog:
-    # Placeholder: the real Raster pycsw Catalog HTTP contract is not confirmed yet.
+    # Raster PyCSW base URL, queried via @map-colonies/csw-client when mode is 'http'.
     url: ''
-    # Only 'stub' is implemented. Setting 'http' fails the service at startup rather than silently
-    # using the stub - see containerConfig.ts#rasterCatalogClientProvider.
+    # 'stub' (always unresolved) or 'http' (real Raster PyCSW lookup) - see
+    # containerConfig.ts#rasterCatalogClientProvider.
     mode: 'stub'
   mapServer:
     # Raster MapProxy base URL - the same value the BFF uses as MAP_SERVICE_RASTER_URL. Needed to resolve

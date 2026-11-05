@@ -14,31 +14,18 @@ type RasterCatalogMode = 'stub' | 'http';
 
 interface IBasemapManagementEnv {
   configServer: {
-    /**
-     * Origin only (e.g. `http://config-server`) - must NOT include `/api/config`. This service is the
-     * single place that composes the path (see `clients/configServer/httpConfigServerClient.ts`), to
-     * avoid the ambiguity seen in `lookup-tables`' Helm chart, where the global `configManagment.url`
-     * value itself already bakes in `/api/config` while the application code appends it again.
-     */
     url: string;
     configName: string;
-    /** config-server schema id for the "basemaps" document. Not yet registered anywhere - see README. */
     schemaId: string;
   };
   dataService: {
-    /** Placeholder: the future binary-persistence data-service does not exist yet (A.12) - unused until it does. */
     url: string;
   };
   rasterCatalog: {
-    /** Placeholder: the real Raster pycsw Catalog HTTP contract is not confirmed yet - unused while `mode` is `'stub'`. */
     url: string;
     mode: RasterCatalogMode;
   };
   mapServer: {
-    /**
-     * Raster MapProxy base URL - the same value the BFF reads as `MAP_SERVICE_RASTER_URL`. The WMTS
-     * capabilities path is appended by `HttpMapServerCapabilitiesClient` unless already present.
-     */
     url: string;
   };
   uploadLimits: {
