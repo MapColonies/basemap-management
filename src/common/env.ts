@@ -10,35 +10,19 @@
  * boilerplate's settings.
  */
 
-type RasterCatalogMode = 'stub' | 'http';
-
 interface IBasemapManagementEnv {
   configServer: {
-    /**
-     * Origin only (e.g. `http://config-server`) - must NOT include `/api/config`. This service is the
-     * single place that composes the path (see `clients/configServer/httpConfigServerClient.ts`), to
-     * avoid the ambiguity seen in `lookup-tables`' Helm chart, where the global `configManagment.url`
-     * value itself already bakes in `/api/config` while the application code appends it again.
-     */
     url: string;
     configName: string;
-    /** config-server schema id for the "basemaps" document. Not yet registered anywhere - see README. */
     schemaId: string;
   };
   dataService: {
-    /** Placeholder: the future binary-persistence data-service does not exist yet (A.12) - unused until it does. */
     url: string;
   };
   rasterCatalog: {
-    /** Placeholder: the real Raster pycsw Catalog HTTP contract is not confirmed yet - unused while `mode` is `'stub'`. */
     url: string;
-    mode: RasterCatalogMode;
   };
   mapServer: {
-    /**
-     * Raster MapProxy base URL - the same value the BFF reads as `MAP_SERVICE_RASTER_URL`. The WMTS
-     * capabilities path is appended by `HttpMapServerCapabilitiesClient` unless already present.
-     */
     url: string;
   };
   uploadLimits: {
@@ -54,17 +38,6 @@ const BYTES_PER_KILOBYTE = 1024;
 const BYTES_PER_MEGABYTE = BYTES_PER_KILOBYTE * BYTES_PER_KILOBYTE;
 const DEFAULT_THUMBNAIL_MAX_SIZE_MEGABYTES = 2;
 const DEFAULT_IMPORT_PACKAGE_MAX_SIZE_MEGABYTES = 10;
-const RASTER_CATALOG_MODES: readonly RasterCatalogMode[] = ['stub', 'http'];
-
-function parseRasterCatalogMode(value: string | undefined): RasterCatalogMode {
-  if (value === undefined) {
-    return 'stub';
-  }
-  if (!(RASTER_CATALOG_MODES as readonly string[]).includes(value)) {
-    throw new Error(`invalid RASTER_CATALOG_MODE "${value}" - expected one of: ${RASTER_CATALOG_MODES.join(', ')}`);
-  }
-  return value as RasterCatalogMode;
-}
 
 function parseByteSize(value: string | undefined, defaultBytes: number): number {
   if (value === undefined) {
@@ -89,7 +62,6 @@ function getBasemapManagementEnv(): IBasemapManagementEnv {
     },
     rasterCatalog: {
       url: process.env.RASTER_CATALOG_URL ?? '',
-      mode: parseRasterCatalogMode(process.env.RASTER_CATALOG_MODE),
     },
     mapServer: {
       url: process.env.MAP_SERVER_URL ?? '',
@@ -105,4 +77,4 @@ function getBasemapManagementEnv(): IBasemapManagementEnv {
 }
 
 export { getBasemapManagementEnv };
-export type { IBasemapManagementEnv, RasterCatalogMode };
+export type { IBasemapManagementEnv };

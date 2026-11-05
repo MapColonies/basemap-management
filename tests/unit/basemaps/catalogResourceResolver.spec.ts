@@ -69,6 +69,12 @@ describe('CatalogResourceResolver', () => {
     expect(mapServerClient.getCapabilities).not.toHaveBeenCalled();
   });
 
+  it('returns UNRESOLVED (never fails the request) when the Raster Catalog client rejects, e.g. PyCSW unreachable', async () => {
+    rasterCatalogClient.resolveLayer.mockRejectedValue(new Error('Raster PyCSW request failed'));
+
+    await expect(resolver.createScope()(CATALOG_SOURCE)).resolves.toEqual(UNRESOLVED);
+  });
+
   it.each([
     ['no productId', { productType: ProductType.ORTHOPHOTO }],
     ['a null productId', { productId: null, productType: ProductType.ORTHOPHOTO }],

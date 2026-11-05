@@ -84,7 +84,10 @@ export class CatalogResourceResolver {
       return unresolved;
     }
 
-    const layer = await this.rasterCatalogClient.resolveLayer(source.domain, uniqueness);
+    const layer = await this.rasterCatalogClient.resolveLayer(source.domain, uniqueness).catch((error: unknown) => {
+      this.logger.warn({ msg: 'Raster Catalog unavailable - catalog layer returned as unresolved', err: error, ...source.uniqueness });
+      return null;
+    });
     if (layer === null) {
       return unresolved;
     }

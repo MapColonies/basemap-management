@@ -10,14 +10,14 @@ permissions:
   packages: write
 
 env:
-  DOMAIN: YOUR_DOMAIN
+  DOMAIN: app
 
 jobs:
   push-docker-image:
     runs-on: ubuntu-latest
     steps:
       - name: Login to Azure Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ${{ secrets.ACR_URL }}
           username: ${{ secrets.ACR_PUSH_USER }}
@@ -25,7 +25,7 @@ jobs:
 
       - name: Build and Push Docker image
         id: build_and_push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           push: true
           tags: ${{ secrets.ACR_URL }}/${{ env.DOMAIN }}/${{ github.event.repository.name }}:${{ github.ref_name }}
@@ -45,7 +45,7 @@ jobs:
     needs: push-docker-image
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v5
 
       - name: Remove v from the tag
         id: remove_v

@@ -9,7 +9,7 @@ function envWith(url: string): IBasemapManagementEnv {
   return {
     configServer: { url: '', configName: 'basemaps', schemaId: 's' },
     dataService: { url: '' },
-    rasterCatalog: { url: '', mode: 'stub' },
+    rasterCatalog: { url: '' },
     mapServer: { url },
     uploadLimits: { thumbnailMaxSizeBytes: 1, importPackageMaxSizeBytes: 1 },
   };

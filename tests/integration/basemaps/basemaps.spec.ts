@@ -462,10 +462,13 @@ describe('basemaps', () => {
     });
 
     it.each([
-      ['the obsolete RESOLVED_CATALOG_RESOURCE type', { type: 'RESOLVED_CATALOG_RESOURCE', domain: 'RASTER', layer: {}, capabilities: { id: 'x' } }],
       [
-        'the obsolete UNRESOLVED_CATALOG_RESOURCE type',
-        { type: 'UNRESOLVED_CATALOG_RESOURCE', domain: 'RASTER', uniqueness: { productId: 'p', productType: 'Orthophoto' } },
+        'an output-shaped RESOLVED source (status/layer/capabilities instead of uniqueness)',
+        { type: 'CATALOG_RESOURCE', domain: 'RASTER', status: 'RESOLVED', layer: {}, capabilities: { id: 'x' } },
+      ],
+      [
+        'an output-shaped UNRESOLVED source (status/layer/capabilities instead of uniqueness)',
+        { type: 'CATALOG_RESOURCE', domain: 'RASTER', status: 'UNRESOLVED', layer: null, capabilities: null },
       ],
       ['the legacy RASTER_RESOURCE shape', { type: 'RASTER_RESOURCE', productId: 'p', productType: 'Orthophoto' }],
       ['an unsupported domain', { type: 'CATALOG_RESOURCE', domain: 'VECTOR', uniqueness: { productId: 'p', productType: 'Orthophoto' } }],
