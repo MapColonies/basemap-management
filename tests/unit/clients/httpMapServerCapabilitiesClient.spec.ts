@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/require-await -- every mock below stands in for the global `fetch` */
+import * as http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { jsLogger } from '@map-colonies/js-logger';
-import { describe, afterEach, it, expect, vi } from 'vitest';
+import { describe, afterAll, beforeAll, beforeEach, it, expect } from 'vitest';
 import { HttpMapServerCapabilitiesClient } from '@src/clients/mapServer/httpMapServerCapabilitiesClient';
 import type { IBasemapManagementEnv } from '@src/common/env';
 
@@ -29,42 +30,54 @@ const XML = `<Capabilities><Contents>
 </Contents></Capabilities>`;
 
 describe('HttpMapServerCapabilitiesClient', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  let server: http.Server;
+  let baseUrl: string;
+  let requestedPaths: string[];
+  let responseStatus: number;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      requestedPaths.push(req.url ?? '');
+      res.writeHead(responseStatus, { 'Content-Type': 'text/xml' });
+      res.end(responseStatus === 200 ? XML : '');
+    });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const { port } = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${port}`;
+  });
+
+  beforeEach(() => {
+    requestedPaths = [];
+    responseStatus = 200;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   it.each([
-    ['http://mapproxy', 'http://mapproxy/wmts/1.0.0/WMTSCapabilities.xml'],
-    ['http://mapproxy/', 'http://mapproxy/wmts/1.0.0/WMTSCapabilities.xml'],
-    ['http://mapproxy/wmts/1.0.0/WMTSCapabilities.xml', 'http://mapproxy/wmts/1.0.0/WMTSCapabilities.xml'],
-  ])('appends the WMTS capabilities path to %s only when missing', async (url, expectedUrl) => {
-    const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => new Response(XML, { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
-    const client = new HttpMapServerCapabilitiesClient(envWith(url), await jsLogger({ enabled: false }));
+    ['', '/wmts/1.0.0/WMTSCapabilities.xml'],
+    ['/', '/wmts/1.0.0/WMTSCapabilities.xml'],
+    ['/wmts/1.0.0/WMTSCapabilities.xml', '/wmts/1.0.0/WMTSCapabilities.xml'],
+  ])('appends the WMTS capabilities path to %s only when missing', async (urlSuffix, expectedPath) => {
+    const client = new HttpMapServerCapabilitiesClient(envWith(`${baseUrl}${urlSuffix}`), await jsLogger({ enabled: false }));
 
     const capabilities = await client.getCapabilities();
 
-    expect(fetchMock).toHaveBeenCalledWith(expectedUrl);
+    expect(requestedPaths).toEqual([expectedPath]);
     expect(capabilities.map((capability) => capability.id)).toEqual(['a']);
   });
 
-  it('throws UpstreamServiceError on a non-ok response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response('', { status: 503 }))
-    );
-    const client = new HttpMapServerCapabilitiesClient(envWith('http://mapproxy'), await jsLogger({ enabled: false }));
+  it('throws on a non-ok response', async () => {
+    responseStatus = 503;
+    const client = new HttpMapServerCapabilitiesClient(envWith(baseUrl), await jsLogger({ enabled: false }));
 
-    await expect(client.getCapabilities()).rejects.toMatchObject({ statusCode: 502 });
+    await expect(client.getCapabilities()).rejects.toMatchObject({ status: 500 });
   });
 
-  it('throws UpstreamServiceError when the request itself fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => Promise.reject(new Error('ECONNREFUSED')))
-    );
-    const client = new HttpMapServerCapabilitiesClient(envWith('http://mapproxy'), await jsLogger({ enabled: false }));
+  it('throws when the request itself fails', async () => {
+    const client = new HttpMapServerCapabilitiesClient(envWith('http://127.0.0.1:1'), await jsLogger({ enabled: false }));
 
-    await expect(client.getCapabilities()).rejects.toMatchObject({ statusCode: 502 });
+    await expect(client.getCapabilities()).rejects.toMatchObject({ status: 500 });
   });
 });

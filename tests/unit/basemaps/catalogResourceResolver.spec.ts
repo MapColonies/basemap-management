@@ -1,6 +1,7 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { Domain, ProductType, SourceType, type Capability } from '@map-colonies/types';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
+import { Domain, ProductType, SourceType } from '@map-colonies/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
 import { Status, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
@@ -17,7 +18,13 @@ const RECORD: LayerRasterRecordModelType = {
     { protocol: 'WMTS', name: LINK_NAME, url: 'https://mapproxy/wmts' },
   ],
 };
-const CAPABILITY: Capability = { id: LINK_NAME, format: ['image/jpeg'] };
+const CAPABILITY: CapabilityWMTS = {
+  id: LINK_NAME,
+  style: [{ value: 'default', isDefault: 'true' }],
+  format: ['image/jpeg'],
+  tileMatrixSet: [{ tileMatrixSetID: 'WorldCRS84', tileMatrixLabels: ['0', '1'] }],
+  url: [{ format: 'image/jpeg', resourceType: 'tile', template: 'https://mapproxy/wmts/{TileMatrix}/{TileCol}/{TileRow}.jpeg' }],
+};
 const CATALOG_SOURCE: ICatalogResourceLayerSource = {
   type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,
@@ -89,7 +96,7 @@ describe('CatalogResourceResolver', () => {
   });
 
   it('returns UNRESOLVED when no MapProxy capability matches - never a resolved source without capabilities', async () => {
-    mapServerClient.getCapabilities.mockResolvedValue([{ id: 'some-other-layer' }]);
+    mapServerClient.getCapabilities.mockResolvedValue([{ id: 'some-other-layer' } as CapabilityWMTS]);
 
     await expect(resolver.createScope()(CATALOG_SOURCE)).resolves.toEqual(UNRESOLVED);
   });

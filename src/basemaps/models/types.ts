@@ -1,5 +1,6 @@
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- SourceType needs a value import: used only via `typeof SourceType.X` below, which the rule doesn't detect as a value usage.
-import { SourceType, type Capability, type Domain, type ProductType } from '@map-colonies/types';
+import { SourceType, type Domain, type ProductType } from '@map-colonies/types';
 import { ProtocolType } from './catalogTypes';
 import type { LayerRasterRecordModelType } from './catalogTypes';
 
@@ -58,7 +59,7 @@ export interface ICatalogResourceLayerSourceOutputBase {
 export interface IResolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {
   status: Status.RESOLVED;
   layer: LayerRasterRecordModelType;
-  capabilities: Capability;
+  capabilities: CapabilityWMTS;
 }
 
 export interface IUnresolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {
