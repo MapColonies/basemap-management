@@ -1,9 +1,10 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect } from 'vitest';
+import { Domain, ProductType } from '@map-colonies/types';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
 import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
-import type { IBasemap, IBasemapWriteInput } from '@src/basemaps/models/types';
+import { SourceType, type IBasemap, type IBasemapLayerInput, type IBasemapWriteInput } from '@src/basemaps/models/types';
 
 async function noopResolver(): Promise<CatalogResourceResolver> {
   return new CatalogResourceResolver(
@@ -79,6 +80,49 @@ describe('BasemapsManager', () => {
 
       expect(refreshedFirst.isCurrent).toBe(false);
       expect(second.isCurrent).toBe(true);
+    });
+  });
+
+  describe('persisted layer shape', () => {
+    const UNIQUENESS = { productId: '12345', productType: ProductType.ORTHOPHOTO };
+    const layerFromRead = {
+      id: 'l1',
+      order: 0,
+      opacity: 1,
+      source: {
+        type: SourceType.CATALOG_RESOURCE,
+        domain: Domain.RASTER,
+        uniqueness: { ...UNIQUENESS, extra: 'x' },
+        status: 'RESOLVED',
+        layer: { id: 'record-1' },
+        capabilities: { id: 'cap-1' },
+      },
+    } as unknown as IBasemapLayerInput;
+    const external: IBasemapLayerInput = {
+      id: 'l2',
+      order: 1,
+      opacity: 0.5,
+      shouldBeUsedInModelDraping: true,
+      source: { type: SourceType.EXTERNAL, details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho', style: 's' } },
+    };
+    const PERSISTED_CATALOG_SOURCE = { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: UNIQUENESS };
+
+    it('stores only the input contract on create - read-only fields are dropped, external details are kept whole', async () => {
+      await manager.create(writeInput({ layers: [layerFromRead, external] }));
+
+      const [stored] = configServerClient.document.basemaps;
+
+      expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }, { ...external }]);
+    });
+
+    it('stores only the input contract on update', async () => {
+      const created = await manager.create(writeInput());
+
+      await manager.update(created.id, writeInput({ layers: [layerFromRead] }));
+
+      const [stored] = configServerClient.document.basemaps;
+
+      expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }]);
     });
   });
 

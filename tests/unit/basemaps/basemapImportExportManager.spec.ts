@@ -1,7 +1,7 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
-import { SourceTypeInput, SourceTypeOutput } from '@src/basemaps/models/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType, Status } from '@src/basemaps/models/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { BasemapImportExportManager } from '@src/basemaps/models/basemapImportExportManager';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
@@ -78,7 +78,7 @@ describe('BasemapImportExportManager', () => {
           id: 'layer-1',
           order: 0,
           opacity: 1,
-          source: { type: SourceTypeInput.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: KNOWN_UNIQUENESS },
+          source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: KNOWN_UNIQUENESS },
         },
       ],
     });
@@ -100,7 +100,7 @@ describe('BasemapImportExportManager', () => {
       const zip = await jsZip.loadAsync(zipBuffer);
       const manifest = JSON.parse(await zip.file('basemap.json')!.async('string')) as { layers: { source: unknown }[] };
 
-      expect(manifest.layers[0]?.source).toEqual({ type: SourceTypeInput.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: KNOWN_UNIQUENESS });
+      expect(manifest.layers[0]?.source).toEqual({ type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: KNOWN_UNIQUENESS });
       // export is a pure read of the persisted document - no catalog round-trip required.
       expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
 
@@ -118,7 +118,7 @@ describe('BasemapImportExportManager', () => {
             id: 'l1',
             order: 0,
             opacity: 1,
-            source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: 'https://example.com/{z}/{x}/{y}' } },
+            source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: 'https://example.com/{z}/{x}/{y}' } },
           },
         ],
       });
@@ -173,7 +173,7 @@ describe('BasemapImportExportManager', () => {
             id: 'l1',
             order: 0,
             opacity: 1,
-            source: { type: SourceTypeInput.CATALOG_RESOURCE as const, domain: Domain.RASTER as const, uniqueness: KNOWN_UNIQUENESS },
+            source: { type: SourceType.CATALOG_RESOURCE as const, domain: Domain.RASTER as const, uniqueness: KNOWN_UNIQUENESS },
           },
         ],
       };
@@ -183,12 +183,18 @@ describe('BasemapImportExportManager', () => {
 
       expect(review.layers).toEqual([
         {
-          status: 'RESOLVED',
           id: 'l1',
           order: 0,
           opacity: 1,
           shouldBeUsedInModelDraping: undefined,
-          source: { type: SourceTypeOutput.RESOLVED_CATALOG_RESOURCE, domain: Domain.RASTER, layer: RESOLVED_LAYER, capabilities: CAPABILITY },
+          source: {
+            type: SourceType.CATALOG_RESOURCE,
+            domain: Domain.RASTER,
+            uniqueness: KNOWN_UNIQUENESS,
+            status: Status.RESOLVED,
+            layer: RESOLVED_LAYER,
+            capabilities: CAPABILITY,
+          },
         },
       ]);
       expect(review.currentRoleConflict).toBeUndefined();
@@ -207,7 +213,7 @@ describe('BasemapImportExportManager', () => {
             order: 0,
             opacity: 1,
             source: {
-              type: SourceTypeInput.CATALOG_RESOURCE as const,
+              type: SourceType.CATALOG_RESOURCE as const,
               domain: Domain.RASTER as const,
               uniqueness: { productId: 'unknown-product', productType: ProductType.ORTHOPHOTO },
             },
@@ -220,15 +226,17 @@ describe('BasemapImportExportManager', () => {
 
       expect(review.layers).toEqual([
         {
-          status: 'UNRESOLVED',
           id: 'l1',
           order: 0,
           opacity: 1,
           shouldBeUsedInModelDraping: undefined,
           source: {
-            type: SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE,
+            type: SourceType.CATALOG_RESOURCE,
             domain: Domain.RASTER,
             uniqueness: { productId: 'unknown-product', productType: ProductType.ORTHOPHOTO },
+            status: Status.UNRESOLVED,
+            layer: null,
+            capabilities: null,
           },
         },
       ]);
@@ -248,7 +256,7 @@ describe('BasemapImportExportManager', () => {
             order: 0,
             opacity: 0.5,
             source: {
-              type: SourceTypeInput.EXTERNAL as const,
+              type: SourceType.EXTERNAL as const,
               details: { protocol: 'XYZ' as const, name: 'n', url: 'https://example.com/{z}/{x}/{y}' },
             },
           },
@@ -259,7 +267,13 @@ describe('BasemapImportExportManager', () => {
       const review = await manager.validateImport(zipBuffer);
 
       expect(review.layers).toEqual([
-        { status: 'RESOLVED', id: 'l1', order: 0, opacity: 0.5, shouldBeUsedInModelDraping: undefined, source: portable.layers[0]?.source },
+        {
+          id: 'l1',
+          order: 0,
+          opacity: 0.5,
+          shouldBeUsedInModelDraping: undefined,
+          source: { ...portable.layers[0]?.source, status: Status.RESOLVED },
+        },
       ]);
       expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
     });

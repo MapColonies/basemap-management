@@ -1,7 +1,7 @@
 import jsZip from 'jszip';
 import { describe, it, expect } from 'vitest';
-import { Domain, ProductType } from '@src/basemaps/models/catalogTypes';
-import { SourceTypeInput } from '@src/basemaps/models/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@src/basemaps/models/types';
 import { writeBasemapPackage } from '@src/basemaps/packaging/basemapPackageWriter';
 import { readBasemapPackage } from '@src/basemaps/packaging/basemapPackageReader';
 import type { IPortableBasemap } from '@src/basemaps/models/types';
@@ -34,7 +34,7 @@ function buildPortable(overrides: Partial<IPortableBasemap> = {}): IPortableBase
         opacity: 1,
         shouldBeUsedInModelDraping: true,
         source: {
-          type: SourceTypeInput.CATALOG_RESOURCE,
+          type: SourceType.CATALOG_RESOURCE,
           domain: Domain.RASTER,
           uniqueness: { productId: '12345', productType: ProductType.ORTHOPHOTO },
         },
@@ -43,7 +43,7 @@ function buildPortable(overrides: Partial<IPortableBasemap> = {}): IPortableBase
         id: 'layer-2',
         order: 1,
         opacity: 0.7,
-        source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'XYZ', name: 'Google Satellite', url: 'https://example.com/{z}/{x}/{y}' } },
+        source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: 'Google Satellite', url: 'https://example.com/{z}/{x}/{y}' } },
       },
     ],
     ...overrides,
@@ -172,7 +172,7 @@ describe('basemap package write/read round-trip', () => {
       id: 'l1',
       order: 0,
       opacity: 1,
-      source: { type: SourceTypeInput.EXTERNAL, details: { protocol: 'FTP', name: 'n', url: 'https://example.com' } },
+      source: { type: SourceType.EXTERNAL, details: { protocol: 'FTP', name: 'n', url: 'https://example.com' } },
     };
     const zip = new jsZip();
     zip.file('basemap.json', JSON.stringify({ ...portable, layers: [badLayer] }));
@@ -203,6 +203,42 @@ describe('basemap package write/read round-trip', () => {
     const buffer = await zip.generateAsync({ type: 'nodebuffer' });
 
     await expect(readBasemapPackage(buffer)).rejects.toThrow(expectedError);
+  });
+
+  it.each([
+    ['no productId', { productType: 'Orthophoto' }],
+    ['a null productId', { productId: null, productType: 'Orthophoto' }],
+    ['an empty uniqueness', {}],
+  ])('accepts a CATALOG_RESOURCE layer with %s (it resolves as UNRESOLVED on review)', async (_label, uniqueness) => {
+    const portable = buildPortable();
+    const zip = new jsZip();
+    zip.file(
+      'basemap.json',
+      JSON.stringify({
+        ...portable,
+        layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: 'CATALOG_RESOURCE', domain: 'RASTER', uniqueness } }],
+      })
+    );
+    zip.file('thumbnail.png', buildPngBuffer());
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    await expect(readBasemapPackage(buffer)).resolves.toMatchObject({ portable: { layers: [{ source: { uniqueness } }] } });
+  });
+
+  it('rejects a CATALOG_RESOURCE layer whose uniqueness values have the wrong JSON type', async () => {
+    const portable = buildPortable();
+    const zip = new jsZip();
+    zip.file(
+      'basemap.json',
+      JSON.stringify({
+        ...portable,
+        layers: [{ id: 'l1', order: 0, opacity: 1, source: { type: 'CATALOG_RESOURCE', domain: 'RASTER', uniqueness: { productId: 12345 } } }],
+      })
+    );
+    zip.file('thumbnail.png', buildPngBuffer());
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    await expect(readBasemapPackage(buffer)).rejects.toThrow(/must be strings when present/);
   });
 
   it('rejects a layer with an unrecognized source.type', async () => {

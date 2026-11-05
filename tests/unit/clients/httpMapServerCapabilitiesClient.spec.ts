@@ -14,7 +14,19 @@ function envWith(url: string): IBasemapManagementEnv {
   };
 }
 
-const XML = `<Capabilities><Contents><Layer><ows:Identifier>a</ows:Identifier><Format>image/png</Format></Layer></Contents></Capabilities>`;
+const XML = `<Capabilities><Contents>
+  <Layer>
+    <ows:Identifier>a</ows:Identifier>
+    <Style isDefault="true"><ows:Identifier>default</ows:Identifier></Style>
+    <Format>image/png</Format>
+    <TileMatrixSetLink><TileMatrixSet>webmercator</TileMatrixSet></TileMatrixSetLink>
+    <ResourceURL format="image/png" resourceType="tile" template="https://mapproxy/wmts/a/{TileMatrix}.png"/>
+  </Layer>
+  <TileMatrixSet>
+    <ows:Identifier>webmercator</ows:Identifier>
+    <TileMatrix><ows:Identifier>0</ows:Identifier></TileMatrix>
+  </TileMatrixSet>
+</Contents></Capabilities>`;
 
 describe('HttpMapServerCapabilitiesClient', () => {
   afterEach(() => {

@@ -1,8 +1,8 @@
 import jsZip from 'jszip';
+import { Domain } from '@map-colonies/types';
 import { ValidationError } from '@common/errors';
 import { sniffImage } from '../thumbnails/imageFormat';
-import { Domain } from '../models/catalogTypes';
-import { PROTOCOLS, SourceTypeInput, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
+import { PROTOCOLS, SourceType, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
 import type { IBasemapLayerInput, IImportPackageThumbnail, IPortableBasemap } from '../models/types';
 
 const MAX_ENTRIES = 10;
@@ -15,6 +15,10 @@ const MAX_OPACITY = 1;
 interface IParsedBasemapPackage {
   portable: IPortableBasemap;
   thumbnail: IImportPackageThumbnail;
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string';
 }
 
 function isSafeEntryName(name: string): boolean {
@@ -43,18 +47,21 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
   }
   const source = candidate.source as { type?: unknown };
   switch (source.type) {
-    case SourceTypeInput.CATALOG_RESOURCE: {
+    case SourceType.CATALOG_RESOURCE: {
       const catalogSource = source as { domain?: unknown; uniqueness?: unknown };
       if (catalogSource.domain !== Domain.RASTER) {
         throw new ValidationError(`layers[${index}].source.domain must be ${Domain.RASTER}`);
       }
-      const uniqueness = catalogSource.uniqueness as { productId?: unknown; productType?: unknown } | null | undefined;
-      if (typeof uniqueness?.productId !== 'string' || typeof uniqueness.productType !== 'string') {
-        throw new ValidationError(`layers[${index}].source is missing uniqueness.productId/productType`);
+      if (typeof catalogSource.uniqueness !== 'object' || catalogSource.uniqueness === null) {
+        throw new ValidationError(`layers[${index}].source is missing uniqueness`);
+      }
+      const { productId, productType } = catalogSource.uniqueness as { productId?: unknown; productType?: unknown };
+      if (!isOptionalString(productId) || !isOptionalString(productType)) {
+        throw new ValidationError(`layers[${index}].source.uniqueness.productId/productType must be strings when present`);
       }
       break;
     }
-    case SourceTypeInput.EXTERNAL: {
+    case SourceType.EXTERNAL: {
       const externalSource = source as { details?: unknown };
       if (typeof externalSource.details !== 'object' || externalSource.details === null) {
         throw new ValidationError(`layers[${index}].source is missing details`);

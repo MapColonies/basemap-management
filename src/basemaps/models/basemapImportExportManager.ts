@@ -7,7 +7,7 @@ import { writeBasemapPackage } from '../packaging/basemapPackageWriter';
 import { findCurrentOwner, findPreviewOwner } from './defaultRolePolicy';
 import { BasemapsManager } from './basemapsManager';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
-import { SourceTypeOutput, type IBasemapLayerInput, type IImportReview, type IImportReviewLayer, type IPortableBasemap } from './types';
+import type { IBasemapLayerInput, IImportReview, IImportReviewLayer, IPortableBasemap } from './types';
 
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/png': 'png',
@@ -83,7 +83,6 @@ export class BasemapImportExportManager {
   private async toReviewLayer(layer: IBasemapLayerInput, resolve: SourceResolver): Promise<IImportReviewLayer> {
     const source = await resolve(layer.source);
     return {
-      status: source.type === SourceTypeOutput.UNRESOLVED_CATALOG_RESOURCE ? 'UNRESOLVED' : 'RESOLVED',
       id: layer.id,
       order: layer.order,
       opacity: layer.opacity,
