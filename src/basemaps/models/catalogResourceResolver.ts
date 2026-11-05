@@ -1,13 +1,12 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
-import { ProductType } from '@map-colonies/types';
+import { ProductType, SourceType } from '@map-colonies/types';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 import type { LayerRasterRecordModelType } from './catalogTypes';
 import {
-  SourceType,
   Status,
   type IBasemapLayerSourceInput,
   type IBasemapLayerSourceOutput,

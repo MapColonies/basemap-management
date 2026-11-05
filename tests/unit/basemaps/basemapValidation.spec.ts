@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Domain, ProductType } from '@map-colonies/types';
-import { SourceType } from '@src/basemaps/models/types';
+import { Domain, ProductType, SourceType } from '@map-colonies/types';
 import { validateBasemapWriteInput } from '@src/basemaps/models/basemapValidation';
 import type { IBasemapLayerInput, IBasemapWriteInput } from '@src/basemaps/models/types';
 

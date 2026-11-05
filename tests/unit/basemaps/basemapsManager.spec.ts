@@ -1,10 +1,10 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect } from 'vitest';
-import { Domain, ProductType } from '@map-colonies/types';
+import { Domain, ProductType, SourceType } from '@map-colonies/types';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
 import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
-import { SourceType, type IBasemap, type IBasemapLayerInput, type IBasemapWriteInput } from '@src/basemaps/models/types';
+import { type IBasemap, type IBasemapLayerInput, type IBasemapWriteInput } from '@src/basemaps/models/types';
 
 async function noopResolver(): Promise<CatalogResourceResolver> {
   return new CatalogResourceResolver(

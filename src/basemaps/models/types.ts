@@ -1,16 +1,12 @@
-import type { Domain, ProductType } from '@map-colonies/types';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- SourceType needs a value import: used only via `typeof SourceType.X` below, which the rule doesn't detect as a value usage.
+import { SourceType, type Domain, type ProductType } from '@map-colonies/types';
 import { ProtocolType } from './catalogTypes';
 import type { LayerRasterRecordModelType } from './catalogTypes';
 
 export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
 export const PROTOCOLS: readonly ProtocolType[] = Object.values(ProtocolType);
-
-export enum SourceType {
-  CATALOG_RESOURCE = 'CATALOG_RESOURCE',
-  EXTERNAL = 'EXTERNAL',
-}
 
 export enum Status {
   RESOLVED = 'RESOLVED',
@@ -38,24 +34,24 @@ export interface IExternalLayerDetails {
 }
 
 export interface IExternalLayerSourceInput {
-  type: SourceType.EXTERNAL;
+  type: typeof SourceType.EXTERNAL;
   details: IExternalLayerDetails;
 }
 
 export interface IExternalLayerSourceOutput {
-  type: SourceType.EXTERNAL;
+  type: typeof SourceType.EXTERNAL;
   status: Status.RESOLVED;
   details: IExternalLayerDetails;
 }
 
 export interface ICatalogResourceLayerSource {
-  type: SourceType.CATALOG_RESOURCE;
+  type: typeof SourceType.CATALOG_RESOURCE;
   domain: Domain.RASTER;
   uniqueness: IRasterUniqueness;
 }
 
 export interface ICatalogResourceLayerSourceOutputBase {
-  type: SourceType.CATALOG_RESOURCE;
+  type: typeof SourceType.CATALOG_RESOURCE;
   domain: Domain.RASTER;
   uniqueness: IRasterUniqueness;
 }
