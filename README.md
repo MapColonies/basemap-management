@@ -19,7 +19,7 @@ The service owns Basemap *configuration* only. It stores no tiles and no raster 
 flowchart LR
   client[REST client] -->|/basemaps| svc[basemap-management]
   svc -->|read / write basemaps document| cs[(config-server)]
-  svc -->|resolve catalog record| rc[Raster Catalog<br/><i>stub</i>]
+  svc -->|resolve catalog record| rc[Raster PyCSW]
   svc -->|WMTSCapabilities.xml| ms[MapProxy / map server]
   svc -.->|thumbnail upload| bs[Blob storage<br/><i>stub</i>]
 ```
@@ -27,14 +27,14 @@ flowchart LR
 Three concerns are kept separate:
 
 1. **Configuration storage.** The whole Basemap list is one JSON document (`{ "basemaps": [...] }`) held in config-server under `CONFIG_BASEMAPS_NAME`. Catalog layers are stored only as *references* (`domain` + `uniqueness`), never as resolved data.
-2. **Catalog resource resolution.** On every read, `CatalogResourceResolver` turns each stored catalog reference into a resolved one: it asks the Raster Catalog for the record, finds the record's `WMTS` link, and matches the link name against the layers in the map server's WMTS capabilities. If any step fails, the layer is returned as `UNRESOLVED_CATALOG_RESOURCE`. It is never dropped and never fails the request.
+2. **Catalog resource resolution.** On every read, `CatalogResourceResolver` turns each stored catalog reference into a resolved one: it asks the Raster Catalog for the record, finds the record's `WMTS` link, and matches the link name against the layers in the map server's WMTS capabilities. If any step fails, the layer's source is returned with `status: 'UNRESOLVED'` (`layer` and `capabilities` both `null`). It is never dropped and never fails the request.
 3. **External resources.** `EXTERNAL` layers are stored and returned as-is (`protocol`, `name`, `url`, plus any extra keys). They are not fetched or validated beyond those three fields.
 
 | Integration | Client | Status |
 | --- | --- | --- |
 | config-server | `HttpConfigServerClient` | Implemented. `GET/POST {CONFIG_MANAGEMENT_URL}/api/config`. |
 | Map server (Raster MapProxy) | `HttpMapServerCapabilitiesClient` | Implemented. Fetches `{MAP_SERVER_URL}/wmts/1.0.0/WMTSCapabilities.xml` once per request. |
-| Raster Catalog | `StubRasterCatalogClient` | **Stub only.** Always returns "not found", so every catalog layer is `UNRESOLVED_CATALOG_RESOURCE`. `RASTER_CATALOG_MODE=http` is rejected at startup (no HTTP client exists). |
+| Raster Catalog | `HttpRasterCatalogClient` | Implemented. Queries Raster PyCSW via `@map-colonies/csw-client`, filtering on `mc:productId` + `mc:productType`, mapping the result with `@map-colonies/mc-model-types`' `PycswLayerCatalogRecord.getPyCSWMappings()`. If `RASTER_CATALOG_URL` is empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
 | Blob storage / data-service | `StubBlobStorageClient` | **Stub only.** Keeps thumbnails in process memory and returns `memory://` URLs. `DATA_SERVICE_URL` is read but unused. |
 
 Source layout:
@@ -118,9 +118,8 @@ Read directly from `process.env` in [src/common/env.ts](src/common/env.ts). Inva
 | `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
 | `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
 | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
-| `MAP_SERVER_URL` | `''` | Raster MapProxy base URL (maps to `mapServer.url` in the env object). `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present. If empty or unreachable, catalog layers come back `UNRESOLVED_CATALOG_RESOURCE`. |
-| `RASTER_CATALOG_MODE` | `stub` | `stub` or `http`. `http` is not implemented and aborts startup. |
-| `RASTER_CATALOG_URL` | `''` | Placeholder, unused while mode is `stub`. |
+| `MAP_SERVER_URL` | `''` | Raster MapProxy base URL (maps to `mapServer.url` in the env object). `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present. If empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
+| `RASTER_CATALOG_URL` | `''` | Raster PyCSW base URL. If empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
 | `DATA_SERVICE_URL` | `''` | Placeholder, unused. Thumbnails go to the in-memory stub. |
 | `THUMBNAIL_MAX_SIZE_BYTES` | `2097152` (2 MiB) | Max thumbnail upload size. |
 | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | `10485760` (10 MiB) | Max import package upload size. |
@@ -215,7 +214,7 @@ Liveness: `GET /liveness` (served at the root, outside `/basemaps`).
 - External layers need `protocol` (`XYZ`, `WMTS`, `WMS`, `OSM`), `name` and `url`.
 - **Default roles:** at most one Basemap has `isCurrent=true` and at most one has `isForPreview=true`. Setting a flag to `true` on create or update clears it from the previous owner in the same write. The two flags are independent.
 - `PUT` replaces the whole Basemap. `id` is server-assigned (a UUID on create); the body has no `id` field.
-- Writes never accept `RESOLVED_CATALOG_RESOURCE` or `UNRESOLVED_CATALOG_RESOURCE`.
+- Writes accept only the input shape (`CATALOG_RESOURCE` with `uniqueness`, or `EXTERNAL` with `details`) - the output-only `status`, `layer`, and `capabilities` fields are not part of the write contract.
 
 ### Layer source types
 
@@ -225,12 +224,11 @@ Input (accepted by `POST`/`PUT`, and what is persisted/exported) and output (ret
 | --- | --- | --- | --- |
 | `CATALOG_RESOURCE` | input | `domain`, `uniqueness` | Reference to a catalog product. Environment independent. |
 | `EXTERNAL` | input and output | `details` | Externally served layer, returned unchanged. |
-| `RESOLVED_CATALOG_RESOURCE` | output | `domain`, `layer`, `capabilities` | Catalog record **and** its MapProxy WMTS capabilities were found. |
-| `UNRESOLVED_CATALOG_RESOURCE` | output | `domain`, `uniqueness` | The reference could not be resolved (see below). Returned as the original reference. |
+|
 
 A catalog layer is resolved only when all of these hold:
 
-1. The Raster Catalog returns a record for `uniqueness` (never true with the current stub).
+1. The Raster Catalog returns a record for `uniqueness` (a real PyCSW lookup via `HttpRasterCatalogClient`; `null` if `RASTER_CATALOG_URL` is empty or unreachable).
 2. The record has a `WMTS` link with a `name`.
 3. The map server's WMTS capabilities contain a layer whose `ows:Identifier` equals that link name.
 
@@ -238,8 +236,10 @@ A catalog layer is resolved only when all of these hold:
 
 ```json
 {
-  "type": "RESOLVED_CATALOG_RESOURCE",
+  "type": "CATALOG_RESOURCE",
   "domain": "RASTER",
+  "uniqueness": { "productId": "MY_PRODUCT", "productType": "Orthophoto" },
+  "status": "RESOLVED",
   "layer": { "id": "<record-id>", "productId": "MY_PRODUCT", "productType": "Orthophoto", "links": [{ "protocol": "WMTS", "name": "my-layer" }] },
   "capabilities": {
     "id": "my-layer",
@@ -335,7 +335,7 @@ npm run helm-uninstall
 | `configManagement.{name,version,offlineMode,serverUrl}` | `CONFIG_NAME`, `CONFIG_VERSION`, `CONFIG_OFFLINE_MODE`, `CONFIG_SERVER_URL` | `@map-colonies/config` bootstrap. |
 | `basemapManagement.configServer.{name,schemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
 | `basemapManagement.mapServer.url` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
-| `basemapManagement.rasterCatalog.{url,mode}` | `RASTER_CATALOG_URL`, `RASTER_CATALOG_MODE` | Keep `mode: stub`. |
+| `basemapManagement.rasterCatalog.url` | `RASTER_CATALOG_URL` | Set to the Raster PyCSW endpoint to resolve real catalog layers; empty or unreachable leaves them unresolved. |
 | `basemapManagement.dataService.url` | `DATA_SERVICE_URL` | Placeholder. |
 | `basemapManagement.uploadLimits.*` | `THUMBNAIL_MAX_SIZE_BYTES`, `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
 | `env.*` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
@@ -359,8 +359,7 @@ Troubleshooting:
 
 | Symptom | Likely cause |
 | --- | --- |
-| Startup error `RASTER_CATALOG_MODE=http is not implemented yet` | Use `RASTER_CATALOG_MODE=stub` (or unset). |
 | `502` on every `/basemaps` call | config-server unreachable or returned an error. Check `CONFIG_MANAGEMENT_URL` (origin only). |
-| All catalog layers are `UNRESOLVED_CATALOG_RESOURCE` | Expected with the stub catalog. Otherwise check `MAP_SERVER_URL` and the warnings in the logs. |
+| All catalog layers have `status: 'UNRESOLVED'` | Expected if `RASTER_CATALOG_URL` is empty. Otherwise check `RASTER_CATALOG_URL`, `MAP_SERVER_URL`, and the warn/error logs from `CatalogResourceResolver`/`HttpRasterCatalogClient`. |
 | Export returns `502` | The stored thumbnail URL cannot be fetched (e.g. a `memory://` URL). |
 | `config not initialized` / config schema errors at startup | Run with `npm run start:dev`, or provide `CONFIG_SERVER_URL`, `CONFIG_NAME`, `CONFIG_VERSION`. |

@@ -5,6 +5,7 @@ WORKDIR /tmp/buildApp
 
 COPY ./package*.json ./
 COPY .husky/ .husky/
+COPY patches/ patches/
 
 RUN npm install
 COPY . .
@@ -21,7 +22,8 @@ ENV SERVER_PORT=8080
 WORKDIR /usr/src/app
 
 COPY --chown=node:node package*.json ./
-COPY .husky/ .husky/
+COPY --chown=node:node .husky/ .husky/
+COPY --chown=node:node patches/ patches/
 
 RUN npm ci --only=production
 
