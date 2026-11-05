@@ -1,4 +1,5 @@
-import type { Capability, Domain, ProductType } from '@map-colonies/types';
+import type { Domain, ProductType } from '@map-colonies/types';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { ProtocolType } from './catalogTypes';
 import type { LayerRasterRecordModelType } from './catalogTypes';
 
@@ -62,7 +63,7 @@ export interface ICatalogResourceLayerSourceOutputBase {
 export interface IResolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {
   status: Status.RESOLVED;
   layer: LayerRasterRecordModelType;
-  capabilities: Capability;
+  capabilities: CapabilityWMTS;
 }
 
 export interface IUnresolvedCatalogResourceLayerSource extends ICatalogResourceLayerSourceOutputBase {

@@ -1,6 +1,7 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
-import { ProductType, type Capability } from '@map-colonies/types';
+import { ProductType } from '@map-colonies/types';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
@@ -50,8 +51,8 @@ export class CatalogResourceResolver {
   ) {}
 
   public createScope(): SourceResolver {
-    let capabilitiesPromise: Promise<Capability[]> | undefined;
-    const getCapabilities = async (): Promise<Capability[]> => {
+    let capabilitiesPromise: Promise<CapabilityWMTS[]> | undefined;
+    const getCapabilities = async (): Promise<CapabilityWMTS[]> => {
       capabilitiesPromise ??= this.mapServerClient.getCapabilities().catch((error: unknown) => {
         this.logger.warn({ msg: 'MapProxy capabilities unavailable - catalog layers will be returned as unresolved', err: error });
         return [];
@@ -73,7 +74,7 @@ export class CatalogResourceResolver {
 
   private async resolveCatalogResource(
     source: ICatalogResourceLayerSource,
-    getCapabilities: () => Promise<Capability[]>
+    getCapabilities: () => Promise<CapabilityWMTS[]>
   ): Promise<IBasemapLayerSourceOutput> {
     const reference = { type: SourceType.CATALOG_RESOURCE, domain: source.domain, uniqueness: source.uniqueness } as const;
     const unresolved: IUnresolvedCatalogResourceLayerSource = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };

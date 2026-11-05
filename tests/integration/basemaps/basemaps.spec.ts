@@ -7,7 +7,8 @@ import request from 'supertest';
 import type { Response as SuperagentResponse } from 'superagent';
 import { createRequestSender, type RequestSender } from '@map-colonies/openapi-supertest';
 import type { Application } from 'express';
-import { Domain, ProductType, type Capability } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import type { paths, operations } from '@openapi';
 import { SourceType, Status } from '@src/basemaps/models/types';
 import { getApp } from '@src/app';
@@ -27,7 +28,7 @@ const RESOLVED_LAYER: LayerRasterRecordModelType = {
   productName: 'France Satellite',
   links: [{ protocol: 'WMTS', name: WMTS_LINK_NAME, url: 'https://mapproxy/wmts' }],
 };
-const CAPABILITY: Capability = {
+const CAPABILITY: CapabilityWMTS = {
   id: WMTS_LINK_NAME,
   style: [{ value: 'default', isDefault: 'true' }],
   format: ['image/jpeg'],
@@ -77,10 +78,10 @@ class FakeRasterCatalogClient implements IRasterCatalogClient {
 }
 
 class FakeMapServerCapabilitiesClient implements IMapServerCapabilitiesClient {
-  public capabilities: Capability[] = [CAPABILITY];
+  public capabilities: CapabilityWMTS[] = [CAPABILITY];
 
   // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async getCapabilities(): Promise<Capability[]> {
+  public async getCapabilities(): Promise<CapabilityWMTS[]> {
     return this.capabilities;
   }
 }
