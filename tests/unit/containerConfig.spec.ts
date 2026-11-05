@@ -14,6 +14,7 @@ describe('rasterCatalogClientProvider', () => {
 
   it('fails fast for mode=http rather than silently falling back to the stub', async () => {
     const logger = await jsLogger({ enabled: false });
+
     expect(() => rasterCatalogClientProvider('http', logger)).toThrow(/not implemented yet/);
   });
 });

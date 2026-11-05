@@ -82,13 +82,11 @@ export class CatalogResourceResolver {
       this.logger.warn({ msg: 'catalog record has no WMTS link - returned as unresolved', ...source.uniqueness });
       return unresolved;
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- CapabilityModelType derives from the shared zod-inferred @map-colonies/types contract, which type-aware lint can't fully resolve here; tsc checks it fine.
     const capabilities = (await getCapabilities()).find((capability) => capability.id === linkName);
     if (capabilities === undefined) {
       this.logger.warn({ msg: 'no MapProxy capability matches the catalog record - returned as unresolved', linkName, ...source.uniqueness });
       return unresolved;
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- same CapabilityModelType resolution limitation as above
     return { ...reference, status: Status.RESOLVED, layer, capabilities };
   }
 }

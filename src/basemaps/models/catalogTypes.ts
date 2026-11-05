@@ -2,8 +2,8 @@ import type { Capability as CapabilityContract } from '@map-colonies/types';
 
 export enum Domain {
   RASTER = 'RASTER',
-  // eslint-disable-next-line @typescript-eslint/naming-convention -- value dictated by the shared Domain enum
-  '3D' = '3D',
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  _3D = '3D',
   DEM = 'DEM',
   VECTOR = 'VECTOR',
 }

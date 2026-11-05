@@ -46,23 +46,27 @@ describe('validateBasemapWriteInput', () => {
 
   it('rejects an empty name', () => {
     const input = { ...baseInput(), name: '   ' };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/name/);
   });
 
   it('rejects a missing thumbnail url', () => {
     const input = { ...baseInput(), thumbnail: { url: '', width: 128 as const, height: 128 as const } };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/thumbnail/);
   });
 
   it('rejects opacity above 1', () => {
     const input = baseInput();
     layerAt(input, 0).opacity = 1.5;
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/opacity/);
   });
 
   it('rejects opacity below 0', () => {
     const input = baseInput();
     layerAt(input, 0).opacity = -0.1;
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/opacity/);
   });
 
@@ -76,6 +80,7 @@ describe('validateBasemapWriteInput', () => {
   ])('accepts a CATALOG_RESOURCE layer with %s - it resolves as UNRESOLVED instead of failing the request', (_label, uniqueness) => {
     const input = baseInput();
     input.layers[0] = { ...layerAt(input, 0), source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness } };
+
     expect(() => validateBasemapWriteInput(input)).not.toThrow();
   });
 
@@ -85,6 +90,7 @@ describe('validateBasemapWriteInput', () => {
       ...layerAt(input, 1),
       source: { type: SourceType.EXTERNAL, details: { protocol: 'FTP' as 'XYZ', name: 'n', url: 'https://example.com' } },
     };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/protocol/);
   });
 
@@ -94,12 +100,14 @@ describe('validateBasemapWriteInput', () => {
       ...layerAt(input, 1),
       source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: '', url: 'https://example.com' } },
     };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/name/);
   });
 
   it('rejects an EXTERNAL layer missing details.url', () => {
     const input = baseInput();
     input.layers[1] = { ...layerAt(input, 1), source: { type: SourceType.EXTERNAL, details: { protocol: 'XYZ', name: 'n', url: '' } } };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/url/);
   });
 
@@ -112,18 +120,21 @@ describe('validateBasemapWriteInput', () => {
         details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho', matrixSet: 'EPSG:3857' },
       },
     };
+
     expect(() => validateBasemapWriteInput(input)).not.toThrow();
   });
 
   it('rejects duplicate layer ids', () => {
     const input = baseInput();
     input.layers[1] = { ...layerAt(input, 1), id: layerAt(input, 0).id };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/duplicate layer id/);
   });
 
   it('rejects duplicate layer orders', () => {
     const input = baseInput();
     input.layers[1] = { ...layerAt(input, 1), order: layerAt(input, 0).order };
+
     expect(() => validateBasemapWriteInput(input)).toThrow(/duplicate layer order/);
   });
 });

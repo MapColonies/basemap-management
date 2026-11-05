@@ -115,6 +115,7 @@ describe('CatalogResourceResolver', () => {
     expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
     expect(mapServerClient.getCapabilities).not.toHaveBeenCalled();
   });
+
   it('fails loudly on a persisted source of an unknown (e.g. legacy RASTER_RESOURCE) type instead of mislabelling it', async () => {
     const legacy = { type: 'RASTER_RESOURCE', productId: '12345', productType: ProductType.ORTHOPHOTO } as unknown as ICatalogResourceLayerSource;
 

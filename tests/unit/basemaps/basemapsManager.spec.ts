@@ -111,6 +111,7 @@ describe('BasemapsManager', () => {
       await manager.create(writeInput({ layers: [layerFromRead, external] }));
 
       const [stored] = configServerClient.document.basemaps;
+
       expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }, { ...external }]);
     });
 
@@ -120,6 +121,7 @@ describe('BasemapsManager', () => {
       await manager.update(created.id, writeInput({ layers: [layerFromRead] }));
 
       const [stored] = configServerClient.document.basemaps;
+
       expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }]);
     });
   });

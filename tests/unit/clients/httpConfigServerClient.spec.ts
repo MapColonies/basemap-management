@@ -32,6 +32,7 @@ describe('HttpConfigServerClient', () => {
 
       const [requestInput] = fetchMock.mock.calls[0] ?? [];
       const requestedUrl = new URL((requestInput as URL).toString());
+
       expect(requestedUrl.origin + requestedUrl.pathname).toBe('http://config-server/api/config');
       expect(requestedUrl.searchParams.get('config_name')).toBe('basemaps');
       expect(requestedUrl.searchParams.get('schema_id')).toBe('https://mapcolonies.com/basemaps/v1');
@@ -123,6 +124,7 @@ describe('HttpConfigServerClient', () => {
       await client.save({ basemaps: [] }, 2);
 
       const [url, init] = fetchMock.mock.calls[0] ?? [];
+
       expect(url).toBe('http://config-server/api/config');
       expect(JSON.parse((init as RequestInit).body as string)).toEqual({
         configName: 'basemaps',
