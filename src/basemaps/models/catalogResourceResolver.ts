@@ -17,8 +17,6 @@ import {
 } from './types';
 
 const WMTS_PROTOCOL = 'WMTS';
-// shared ProductType spans all domains (raster/DEM/3D/vector) - this allowlist must stay an explicit
-// raster-only subset, not Object.values(ProductType), or non-raster product types would resolve here.
 const RASTER_PRODUCT_TYPES = new Set<string>([
   ProductType.ORTHOPHOTO,
   ProductType.ORTHOPHOTO_HISTORY,
