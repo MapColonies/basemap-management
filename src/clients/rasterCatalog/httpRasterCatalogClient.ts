@@ -40,12 +40,15 @@ function extractRawRecords(response: unknown): Record<string, unknown>[] {
 
 @injectable()
 export class HttpRasterCatalogClient implements IRasterCatalogClient {
-  private readonly cswClient: CswClient;
+  private readonly rasterCatalogUrl: string;
+  private readonly requestExecutor: IRequestExecutor;
+  private cswClient: CswClient | undefined;
 
   public constructor(
     @inject(SERVICES.BASEMAP_MANAGEMENT_ENV) env: IBasemapManagementEnv,
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {
+    this.rasterCatalogUrl = env.rasterCatalog.url;
     const requestExecutor: IRequestExecutor = async (url, method, params) => {
       const { data, headers } = params as { data?: string; headers?: Record<string, string> };
       const response = await fetch(url, { method, headers, body: data });
@@ -54,13 +57,21 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
       }
       return { data: await response.text() };
     };
-    this.cswClient = new CswClient(env.rasterCatalog.url, requestExecutor);
+    this.requestExecutor = requestExecutor;
   }
 
   public async resolveLayer(domain: Domain.RASTER, uniqueness: IResolvableRasterUniqueness): Promise<LayerRasterRecordModelType | null> {
     const logContext = { domain, productId: uniqueness.productId, productType: uniqueness.productType };
 
-    const response: unknown = await this.cswClient
+    let cswClient: CswClient;
+    try {
+      this.cswClient ??= new CswClient(this.rasterCatalogUrl, this.requestExecutor);
+      cswClient = this.cswClient;
+    } catch (error) {
+      throw new UpstreamServiceError(`Raster PyCSW request failed: ${String(error)}`);
+    }
+
+    const response: unknown = await cswClient
       .GetRecords(RASTER_OUTPUT_SCHEMA, START_INDEX, MAX_RECORDS, {
         filter: [
           { field: 'mc:productId', eq: uniqueness.productId },

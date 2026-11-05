@@ -153,14 +153,12 @@ basemapManagement:
   dataService:
     url: ''
   rasterCatalog:
-    # Raster PyCSW base URL, queried via @map-colonies/csw-client when mode is 'http'.
+    # Raster PyCSW base URL, queried via @map-colonies/csw-client. If empty or unreachable, catalog
+    # layers come back with status: 'UNRESOLVED'.
     url: ''
-    # 'stub' (always unresolved) or 'http' (real Raster PyCSW lookup) - see
-    # containerConfig.ts#rasterCatalogClientProvider.
-    mode: 'stub'
   mapServer:
-    # Raster MapProxy base URL - the same value the BFF uses as MAP_SERVICE_RASTER_URL. Needed to resolve
-    # catalog layers' WMTS capabilities; when unreachable, catalog layers are returned as UNRESOLVED_CATALOG_RESOURCE.
+    # Raster MapProxy base URL - needed to resolve catalog layers' WMTS capabilities;
+    # when unreachable, catalog layers come back with status: 'UNRESOLVED'.
     url: ''
   uploadLimits:
     thumbnailMaxSizeBytes: 2097152 # 2MB - a 128x128 PNG/WebP comes nowhere close to this

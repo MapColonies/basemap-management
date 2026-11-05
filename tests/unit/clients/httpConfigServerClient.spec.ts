@@ -7,7 +7,7 @@ import type { IBasemapManagementEnv } from '@src/common/env';
 const TEST_ENV: IBasemapManagementEnv = {
   configServer: { url: 'http://config-server', configName: 'basemaps', schemaId: 'https://mapcolonies.com/basemaps/v1' },
   dataService: { url: '' },
-  rasterCatalog: { url: '', mode: 'stub' },
+  rasterCatalog: { url: '' },
   mapServer: { url: '' },
   uploadLimits: { thumbnailMaxSizeBytes: 1, importPackageMaxSizeBytes: 1 },
 };

@@ -184,9 +184,9 @@ describe('basemap package write/read round-trip', () => {
   it.each([
     ['the legacy RASTER_RESOURCE shape', { type: 'RASTER_RESOURCE', productId: 'p', productType: 'Orthophoto' }, /not a recognized source type/],
     [
-      'an output-only RESOLVED_CATALOG_RESOURCE',
-      { type: 'RESOLVED_CATALOG_RESOURCE', domain: 'RASTER', layer: {}, capabilities: {} },
-      /not a recognized source type/,
+      'an output-shaped source (status/layer/capabilities instead of uniqueness)',
+      { type: 'CATALOG_RESOURCE', domain: 'RASTER', status: 'RESOLVED', layer: {}, capabilities: {} },
+      /uniqueness/,
     ],
     [
       'a CATALOG_RESOURCE with an unsupported domain',

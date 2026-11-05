@@ -10,8 +10,6 @@
  * boilerplate's settings.
  */
 
-type RasterCatalogMode = 'stub' | 'http';
-
 interface IBasemapManagementEnv {
   configServer: {
     url: string;
@@ -23,7 +21,6 @@ interface IBasemapManagementEnv {
   };
   rasterCatalog: {
     url: string;
-    mode: RasterCatalogMode;
   };
   mapServer: {
     url: string;
@@ -41,17 +38,6 @@ const BYTES_PER_KILOBYTE = 1024;
 const BYTES_PER_MEGABYTE = BYTES_PER_KILOBYTE * BYTES_PER_KILOBYTE;
 const DEFAULT_THUMBNAIL_MAX_SIZE_MEGABYTES = 2;
 const DEFAULT_IMPORT_PACKAGE_MAX_SIZE_MEGABYTES = 10;
-const RASTER_CATALOG_MODES: readonly RasterCatalogMode[] = ['stub', 'http'];
-
-function parseRasterCatalogMode(value: string | undefined): RasterCatalogMode {
-  if (value === undefined) {
-    return 'stub';
-  }
-  if (!(RASTER_CATALOG_MODES as readonly string[]).includes(value)) {
-    throw new Error(`invalid RASTER_CATALOG_MODE "${value}" - expected one of: ${RASTER_CATALOG_MODES.join(', ')}`);
-  }
-  return value as RasterCatalogMode;
-}
 
 function parseByteSize(value: string | undefined, defaultBytes: number): number {
   if (value === undefined) {
@@ -76,7 +62,6 @@ function getBasemapManagementEnv(): IBasemapManagementEnv {
     },
     rasterCatalog: {
       url: process.env.RASTER_CATALOG_URL ?? '',
-      mode: parseRasterCatalogMode(process.env.RASTER_CATALOG_MODE),
     },
     mapServer: {
       url: process.env.MAP_SERVER_URL ?? '',
@@ -92,4 +77,4 @@ function getBasemapManagementEnv(): IBasemapManagementEnv {
 }
 
 export { getBasemapManagementEnv };
-export type { IBasemapManagementEnv, RasterCatalogMode };
+export type { IBasemapManagementEnv };
