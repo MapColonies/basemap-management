@@ -1,9 +1,9 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { Domain, ProductType, type Capability } from '@map-colonies/types';
+import { Domain, ProductType, SourceType, type Capability } from '@map-colonies/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
-import { SourceType, Status, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
+import { Status, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 

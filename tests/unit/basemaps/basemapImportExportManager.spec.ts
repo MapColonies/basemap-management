@@ -1,7 +1,7 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { Domain, ProductType } from '@map-colonies/types';
-import { SourceType, Status } from '@src/basemaps/models/types';
+import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Status } from '@src/basemaps/models/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { BasemapImportExportManager } from '@src/basemaps/models/basemapImportExportManager';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
@@ -173,7 +173,7 @@ describe('BasemapImportExportManager', () => {
             id: 'l1',
             order: 0,
             opacity: 1,
-            source: { type: SourceType.CATALOG_RESOURCE as const, domain: Domain.RASTER as const, uniqueness: KNOWN_UNIQUENESS },
+            source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER as const, uniqueness: KNOWN_UNIQUENESS },
           },
         ],
       };
@@ -213,7 +213,7 @@ describe('BasemapImportExportManager', () => {
             order: 0,
             opacity: 1,
             source: {
-              type: SourceType.CATALOG_RESOURCE as const,
+              type: SourceType.CATALOG_RESOURCE,
               domain: Domain.RASTER as const,
               uniqueness: { productId: 'unknown-product', productType: ProductType.ORTHOPHOTO },
             },
@@ -256,7 +256,7 @@ describe('BasemapImportExportManager', () => {
             order: 0,
             opacity: 0.5,
             source: {
-              type: SourceType.EXTERNAL as const,
+              type: SourceType.EXTERNAL,
               details: { protocol: 'XYZ' as const, name: 'n', url: 'https://example.com/{z}/{x}/{y}' },
             },
           },

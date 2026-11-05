@@ -1,8 +1,8 @@
 import jsZip from 'jszip';
-import { Domain } from '@map-colonies/types';
+import { Domain, SourceType } from '@map-colonies/types';
 import { ValidationError } from '@common/errors';
 import { sniffImage } from '../thumbnails/imageFormat';
-import { PROTOCOLS, SourceType, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
+import { PROTOCOLS, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
 import type { IBasemapLayerInput, IImportPackageThumbnail, IPortableBasemap } from '../models/types';
 
 const MAX_ENTRIES = 10;

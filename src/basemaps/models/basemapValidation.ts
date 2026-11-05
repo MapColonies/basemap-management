@@ -1,5 +1,6 @@
+import { SourceType } from '@map-colonies/types';
 import { ValidationError } from '@common/errors';
-import { PROTOCOLS, SourceType } from './types';
+import { PROTOCOLS } from './types';
 import type { IBasemapLayerInput, IBasemapWriteInput } from './types';
 
 const MIN_OPACITY = 0;
