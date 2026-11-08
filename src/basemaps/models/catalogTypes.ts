@@ -1,15 +1,16 @@
-import type { ProductType } from '@map-colonies/types';
+import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType, type ProductType } from '@map-colonies/types';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention -- const-object + type idiom mirrored from catalog-app
-export const ProtocolType = {
-  /* eslint-disable @typescript-eslint/naming-convention -- protocol identifiers */
-  XYZ: 'XYZ',
-  WMTS: 'WMTS',
-  WMS: 'WMS',
-  OSM: 'OSM',
+export const ImageryProtocolType = {
+  /* eslint-disable @typescript-eslint/naming-convention */
+  WMS: OGC_ImageryProtocolType.WMS,
+  WMTS: OGC_ImageryProtocolType.WMTS,
+  XYZ: OGC_ImageryProtocolType.XYZ,
+  OSM: PROPRIETARY_ImageryProtocolType.OSM,
+  MAPBOX_STYLE: PROPRIETARY_ImageryProtocolType.MAPBOX_STYLE,
+  BING_MAPS: PROPRIETARY_ImageryProtocolType.BING_MAPS,
   /* eslint-enable @typescript-eslint/naming-convention */
 } as const;
-export type ProtocolType = (typeof ProtocolType)[keyof typeof ProtocolType];
+export type ImageryProtocolType = (typeof ImageryProtocolType)[keyof typeof ImageryProtocolType];
 
 export interface LinkModelType {
   name?: string | null;

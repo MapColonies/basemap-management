@@ -1,12 +1,12 @@
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- SourceType needs a value import: used only via `typeof SourceType.X` below, which the rule doesn't detect as a value usage.
 import { SourceType, type Domain, type ProductType } from '@map-colonies/types';
-import { ProtocolType } from './catalogTypes';
+import { ImageryProtocolType } from './catalogTypes';
 import type { LayerRasterRecordModelType } from './catalogTypes';
 
 export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
-export const PROTOCOLS: readonly ProtocolType[] = Object.values(ProtocolType);
+export const PROTOCOLS: readonly ImageryProtocolType[] = Object.values(ImageryProtocolType);
 
 export enum Status {
   RESOLVED = 'RESOLVED',
@@ -27,7 +27,7 @@ export interface IResolvableRasterUniqueness {
 }
 
 export interface IExternalLayerDetails {
-  protocol: ProtocolType;
+  protocol: ImageryProtocolType;
   name: string;
   url: string;
   [key: string]: unknown;
