@@ -30,10 +30,10 @@ const RASTER_PRODUCT_TYPES = new Set<string>([
 ]);
 
 function toResolvableUniqueness({ productId, productType }: IRasterUniqueness): IResolvableRasterUniqueness | undefined {
-  if (typeof productId !== 'string' || productId.length === 0 || productType === undefined || !RASTER_PRODUCT_TYPES.has(productType)) {
+  if (typeof productId !== 'string' || productId.length === 0 || typeof productType !== 'string' || !RASTER_PRODUCT_TYPES.has(productType)) {
     return undefined;
   }
-  return { productId, productType };
+  return { productId, productType: productType as ProductType };
 }
 
 function findWmtsLinkName(layer: LayerRasterRecordModelType): string | undefined {

@@ -4,8 +4,12 @@ export interface IConfigServerDocument {
   basemaps: IPersistedBasemap[];
 }
 
+export interface IRawConfigServerDocument {
+  basemaps: unknown[];
+}
+
 export interface IConfigServerDocumentWithVersion {
-  document: IConfigServerDocument;
+  document: IRawConfigServerDocument;
   /** `undefined` means no document has ever been written for this configName yet. */
   version: number | undefined;
 }

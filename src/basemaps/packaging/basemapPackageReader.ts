@@ -67,7 +67,7 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
         throw new ValidationError(`layers[${index}].source is missing details`);
       }
       const details = externalSource.details as { protocol?: unknown; name?: unknown; url?: unknown };
-      if (typeof details.protocol !== 'string' || !(PROTOCOLS as readonly string[]).includes(details.protocol)) {
+      if (typeof details.protocol !== 'string' || !PROTOCOLS.includes(details.protocol)) {
         throw new ValidationError(`layers[${index}].source.details has an unknown protocol`);
       }
       if (typeof details.name !== 'string' || details.name.length === 0) {
@@ -87,7 +87,7 @@ function assertValidPortableBasemap(manifest: unknown): asserts manifest is IPor
   if (typeof manifest !== 'object' || manifest === null) {
     throw new ValidationError('basemap.json is not an object');
   }
-  const candidate = manifest as { name?: unknown; isCurrent?: unknown; isForPreview?: unknown; thumbnail?: unknown; layers?: unknown };
+  const candidate: { name?: unknown; isCurrent?: unknown; isForPreview?: unknown; thumbnail?: unknown; layers?: unknown } = manifest;
 
   if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
     throw new ValidationError('basemap.json is missing a non-empty name');
