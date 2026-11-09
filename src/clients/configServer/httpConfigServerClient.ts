@@ -26,7 +26,7 @@ function parseConfigServerReadResponse(body: unknown, configName: string): IConf
   }
 
   const rawDocument = entry.config as { basemaps?: unknown } | undefined;
-  const basemaps = Array.isArray(rawDocument?.basemaps) ? (rawDocument.basemaps as IConfigServerDocument['basemaps']) : [];
+  const basemaps = Array.isArray(rawDocument?.basemaps) ? rawDocument.basemaps : [];
   const version = typeof entry.version === 'number' ? entry.version : undefined;
 
   return { document: { basemaps }, version };

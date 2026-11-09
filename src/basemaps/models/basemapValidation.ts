@@ -1,46 +1,9 @@
-import { SourceType } from '@map-colonies/types';
+import { SourceType, BasemapWriteInputSchema } from '@map-colonies/types';
 import { ValidationError } from '@common/errors';
 import { PROTOCOLS } from './types';
 import type { IBasemapLayerInput, IBasemapWriteInput } from './types';
 
-const MIN_OPACITY = 0;
-const MAX_OPACITY = 1;
-
-function validateLayer(layer: IBasemapLayerInput): void {
-  if (layer.opacity < MIN_OPACITY || layer.opacity > MAX_OPACITY) {
-    throw new ValidationError(`layer "${layer.id}" has an invalid opacity (${layer.opacity}) - must be between 0 and 1`);
-  }
-
-  switch (layer.source.type) {
-    case SourceType.CATALOG_RESOURCE:
-      break;
-    case SourceType.EXTERNAL:
-      if (!PROTOCOLS.includes(layer.source.details.protocol)) {
-        throw new ValidationError(`layer "${layer.id}" has an unknown protocol "${layer.source.details.protocol}"`);
-      }
-      if (layer.source.details.name.trim().length === 0) {
-        throw new ValidationError(`layer "${layer.id}" is missing details.name`);
-      }
-      if (layer.source.details.url.length === 0) {
-        throw new ValidationError(`layer "${layer.id}" is missing details.url`);
-      }
-      break;
-    /* istanbul ignore next */
-    default:
-      // switch-exhaustiveness-check keeps this safe against future source types.
-      throw new ValidationError(`layer "${layer.id}" has an unknown source type`);
-  }
-}
-
-export function validateBasemapWriteInput(input: IBasemapWriteInput): void {
-  if (input.name.trim().length === 0) {
-    throw new ValidationError('name must not be empty');
-  }
-
-  if (input.thumbnail.url.trim().length === 0) {
-    throw new ValidationError('thumbnail.url must not be empty - upload a thumbnail via POST /basemaps/thumbnails first');
-  }
-
+function validateBusinessRules(input: IBasemapWriteInput): void {
   const seenIds = new Set<string>();
   const seenOrders = new Set<number>();
   for (const layer of input.layers) {
@@ -54,6 +17,32 @@ export function validateBasemapWriteInput(input: IBasemapWriteInput): void {
     }
     seenOrders.add(layer.order);
 
-    validateLayer(layer);
+    if (layer.source.type === SourceType.EXTERNAL && !PROTOCOLS.includes(layer.source.details.protocol)) {
+      throw new ValidationError(`layer "${layer.id}" has an unknown protocol "${layer.source.details.protocol}"`);
+    }
   }
+}
+
+function messageFor(layer: IBasemapLayerInput | undefined, issue: { path: (string | number)[]; message: string }): string {
+  const [, layerIndex, field, ...rest] = issue.path;
+  if (layer === undefined || layerIndex === undefined || field === undefined) {
+    return issue.message;
+  }
+  const fieldPath = [field, ...rest].join('.');
+  return `layer "${layer.id}" ${fieldPath}: ${issue.message}`;
+}
+
+export function validateBasemapWriteInput(input: IBasemapWriteInput): void {
+  const result = BasemapWriteInputSchema.safeParse(input);
+  if (!result.success) {
+    const [issue] = result.error.issues;
+    /* istanbul ignore next -- zod guarantees at least one issue on failure */
+    if (issue === undefined) {
+      throw new ValidationError('invalid basemap input');
+    }
+    const layer = issue.path[0] === 'layers' && typeof issue.path[1] === 'number' ? input.layers[issue.path[1]] : undefined;
+    throw new ValidationError(messageFor(layer, issue));
+  }
+
+  validateBusinessRules(input);
 }

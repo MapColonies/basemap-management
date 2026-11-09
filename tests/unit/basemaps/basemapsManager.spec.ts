@@ -1,10 +1,14 @@
-import { jsLogger } from '@map-colonies/js-logger';
-import { describe, beforeEach, it, expect } from 'vitest';
+import { jsLogger, type Logger } from '@map-colonies/js-logger';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { Domain, ProductType, SourceType } from '@map-colonies/types';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
 import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
-import { type IBasemap, type IBasemapLayerInput, type IBasemapWriteInput } from '@src/basemaps/models/types';
+import { type IBasemap, type IBasemapLayerInput, type IBasemapWriteInput, type IPersistedBasemap } from '@src/basemaps/models/types';
+
+function fakeLogger(): Logger {
+  return { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn(), fatal: vi.fn(), trace: vi.fn() } as unknown as Logger;
+}
 
 async function noopResolver(): Promise<CatalogResourceResolver> {
   return new CatalogResourceResolver(
@@ -19,12 +23,12 @@ class FakeConfigServerClient implements IConfigServerClient {
   public document: IConfigServerDocument = { basemaps: [] };
   public saveCallCount = 0;
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
+  // eslint-disable-next-line @typescript-eslint/require-await
   public async getLatest(): Promise<{ document: IConfigServerDocument; version: number | undefined }> {
     return { document: this.document, version: this.version === 0 ? undefined : this.version };
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
+  // eslint-disable-next-line @typescript-eslint/require-await
   public async save(document: IConfigServerDocument, baseVersion: number | undefined): Promise<{ version: number }> {
     const expectedBaseVersion = this.version === 0 ? undefined : this.version;
     if (baseVersion !== expectedBaseVersion) {
@@ -167,6 +171,43 @@ describe('BasemapsManager', () => {
       const basemaps: IBasemap[] = await manager.list();
 
       expect(basemaps.map((basemap) => basemap.name).sort()).toEqual(['A', 'B']);
+    });
+  });
+
+  describe('malformed persisted data', () => {
+    const CORRUPT_ENTRY = { id: 'corrupt-1', name: 42 } as unknown as IPersistedBasemap;
+
+    it('#list skips a corrupt entry, keeps valid ones, and logs it with its id', async () => {
+      const created = await manager.create(writeInput({ name: 'A' }));
+      configServerClient.document.basemaps = [...configServerClient.document.basemaps, CORRUPT_ENTRY];
+      const logger = fakeLogger();
+      const loggingManager = new BasemapsManager(configServerClient, await noopResolver(), logger);
+
+      const basemaps = await loggingManager.list();
+
+      expect(basemaps.map((basemap) => basemap.id)).toEqual([created.id]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({ basemapId: 'corrupt-1' }));
+    });
+
+    it('#getById fails closed (not 404) for a present-but-corrupt entry', async () => {
+      configServerClient.document.basemaps = [CORRUPT_ENTRY];
+
+      await expect(manager.getById('corrupt-1')).rejects.toMatchObject({ statusCode: 500 });
+    });
+
+    it('#getById still returns 404 for a truly missing id, not the corrupt-data error', async () => {
+      configServerClient.document.basemaps = [CORRUPT_ENTRY];
+
+      await expect(manager.getById('does-not-exist')).rejects.toMatchObject({ statusCode: 404 });
+    });
+
+    it('a write preserves a pre-existing corrupt sibling entry untouched rather than dropping it', async () => {
+      configServerClient.document.basemaps = [CORRUPT_ENTRY];
+
+      await manager.create(writeInput({ name: 'A' }));
+
+      expect(configServerClient.document.basemaps).toContainEqual(CORRUPT_ENTRY);
+      expect(configServerClient.document.basemaps).toHaveLength(2);
     });
   });
 

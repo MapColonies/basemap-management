@@ -3,10 +3,11 @@ import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
 import { SourceType } from '@map-colonies/types';
 import { SERVICES } from '@common/constants';
-import { NotFoundError } from '@common/errors';
-import { CONFIG_SERVER_CLIENT, type IConfigServerClient } from '@src/clients/configServer/configServerClient';
+import { CorruptPersistedDataError, NotFoundError } from '@common/errors';
+import { CONFIG_SERVER_CLIENT, type IConfigServerClient, type IConfigServerDocument } from '@src/clients/configServer/configServerClient';
 import { applyDefaultRoles, assertSingleOwnerPerRole } from './defaultRolePolicy';
 import { validateBasemapWriteInput } from './basemapValidation';
+import { splitPersistedBasemaps } from './persistedBasemapValidation';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
 import { type IBasemap, type IBasemapLayerInput, type IBasemapLayerOutput, type IBasemapWriteInput, type IPersistedBasemap } from './types';
 
@@ -28,7 +29,8 @@ class BasemapsManager {
 
   public async listPersisted(): Promise<IPersistedBasemap[]> {
     const { document } = await this.configServerClient.getLatest();
-    return document.basemaps;
+    const { valid } = splitPersistedBasemaps(document.basemaps, this.logger);
+    return valid;
   }
 
   public async getById(id: string): Promise<IBasemap> {
@@ -81,11 +83,17 @@ class BasemapsManager {
   }
 
   private async getPersistedById(id: string): Promise<IPersistedBasemap> {
-    const basemap = (await this.listPersisted()).find((candidate) => candidate.id === id);
-    if (!basemap) {
-      throw new NotFoundError(`basemap "${id}" was not found`);
+    const { document } = await this.configServerClient.getLatest();
+    const { valid, invalidIds } = splitPersistedBasemaps(document.basemaps, this.logger);
+
+    const basemap = valid.find((candidate) => candidate.id === id);
+    if (basemap) {
+      return basemap;
     }
-    return basemap;
+    if (invalidIds.has(id)) {
+      throw new CorruptPersistedDataError(`basemap "${id}" could not be loaded`);
+    }
+    throw new NotFoundError(`basemap "${id}" was not found`);
   }
 
   private async toOutput(basemap: IPersistedBasemap, resolve: SourceResolver = this.resolver.createScope()): Promise<IBasemap> {
@@ -108,9 +116,10 @@ class BasemapsManager {
   private async mutate<T>(fn: (basemaps: IPersistedBasemap[]) => { next: IPersistedBasemap[]; result: T }): Promise<T> {
     const run = async (): Promise<T> => {
       const { document, version } = await this.configServerClient.getLatest();
-      const { next, result } = fn(document.basemaps);
+      const { valid, invalidRaw } = splitPersistedBasemaps(document.basemaps, this.logger);
+      const { next, result } = fn(valid);
       assertSingleOwnerPerRole(next);
-      await this.configServerClient.save({ basemaps: next }, version);
+      await this.configServerClient.save({ basemaps: [...invalidRaw, ...next] } as IConfigServerDocument, version);
       return result;
     };
 

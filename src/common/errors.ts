@@ -1,7 +1,6 @@
 import { StatusCodes } from 'http-status-codes';
 import type { HttpError } from '@map-colonies/error-express-handler';
 
-/** Base class for domain errors that carry an HTTP status code understood by `getErrorHandlerMiddleware`. */
 export class AppHttpError extends Error implements HttpError {
   public readonly statusCode: StatusCodes;
 
@@ -24,9 +23,14 @@ export class NotFoundError extends AppHttpError {
   }
 }
 
-/** A downstream dependency (config-server, blob storage, Raster Catalog) returned an error or is unreachable. */
 export class UpstreamServiceError extends AppHttpError {
   public constructor(message: string) {
     super(StatusCodes.BAD_GATEWAY, message);
+  }
+}
+
+export class CorruptPersistedDataError extends AppHttpError {
+  public constructor(message: string) {
+    super(StatusCodes.INTERNAL_SERVER_ERROR, message);
   }
 }

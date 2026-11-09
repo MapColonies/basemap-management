@@ -112,11 +112,8 @@ export type components = {
       /** @enum {integer} */
       height: 128;
     };
-    /**
-     * @description Serving protocol of an external layer.
-     * @enum {string}
-     */
-    protocol: 'XYZ' | 'WMTS' | 'WMS' | 'OSM';
+    /** @description Serving protocol of an external layer. The supported values come from the shared imagery protocol list (`WMS`, `WMTS`, `XYZ`, `OSM`, `MAPBOX_STYLE`, `BING_MAPS`) and are enforced by the service at request-validation time; the schema stays an open string so the list can grow in `@map-colonies/types` without a spec change. */
+    protocol: string;
     /** @description Configuration for an externally-served layer. `protocol`/`name`/`url` are the only fields this service interprets; additional provider-specific keys are accepted and stored as-is. */
     externalLayerDetails: {
       protocol: components['schemas']['protocol'];

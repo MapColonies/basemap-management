@@ -87,7 +87,7 @@ describe('validateBasemapWriteInput', () => {
     const input = baseInput();
     input.layers[1] = {
       ...layerAt(input, 1),
-      source: { type: SourceType.EXTERNAL, details: { protocol: 'FTP' as 'XYZ', name: 'n', url: 'https://example.com' } },
+      source: { type: SourceType.EXTERNAL, details: { protocol: 'FTP', name: 'n', url: 'https://example.com' } },
     };
 
     expect(() => validateBasemapWriteInput(input)).toThrow(/protocol/);
