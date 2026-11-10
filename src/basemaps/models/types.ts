@@ -1,23 +1,17 @@
-/* eslint-disable @typescript-eslint/naming-convention, import-x/exports-last */
-import type { z } from 'zod';
-import {
-  type ProductType,
-  type BasemapLayerSourceInputSchema,
-  type BasemapLayerInputSchema,
-  type BasemapWriteInputSchema,
-  type PersistedBasemapSchema,
-  type CatalogResourceLayerSourceSchema,
-  type ExternalLayerDetailsSchema,
-  type ExternalLayerSourceInputSchema,
-  type ExternalLayerSourceOutputSchema,
-  type UnresolvedCatalogResourceLayerSourceSchema,
-  createResolvedCatalogResourceLayerSourceSchema,
-  createBasemapLayerSourceOutputSchema,
-  createBasemapLayerOutputSchema,
-  createBasemapSchema,
+import type {
+  ProductType,
+  Basemap,
+  BasemapLayerInput,
+  BasemapLayerOutput,
+  BasemapLayerSourceInput,
+  BasemapLayerSourceOutput,
+  BasemapWriteInput,
+  CatalogResourceLayerSource,
+  PersistedBasemap,
+  RasterUniqueness,
 } from '@map-colonies/types';
-import { CapabilityWMTSSchema, type CapabilityWMTS } from '@map-colonies/wmts-client';
-import { ImageryProtocolType, LayerRasterRecordModelSchema, type LayerRasterRecordModelType } from './catalogTypes';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
+import { ImageryProtocolType, type LayerRasterRecordModelType } from './catalogTypes';
 
 export { ResourceResolutionStatus as Status } from '@map-colonies/types';
 
@@ -25,44 +19,23 @@ export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
 export const PROTOCOLS: readonly string[] = Object.values(ImageryProtocolType);
 
-export interface IBasemapThumbnail {
-  url: string;
-  width: typeof THUMBNAIL_DIMENSION_PIXELS;
-  height: typeof THUMBNAIL_DIMENSION_PIXELS;
-}
-
 export interface IResolvableRasterUniqueness {
   productId: string;
   productType: ProductType;
 }
 
-export type IExternalLayerDetails = z.infer<typeof ExternalLayerDetailsSchema>;
-export type IExternalLayerSourceInput = z.infer<typeof ExternalLayerSourceInputSchema>;
-export type IExternalLayerSourceOutput = z.infer<typeof ExternalLayerSourceOutputSchema>;
+export type IRasterUniqueness = RasterUniqueness;
 
-export type ICatalogResourceLayerSource = z.infer<typeof CatalogResourceLayerSourceSchema>;
-export type IRasterUniqueness = ICatalogResourceLayerSource['uniqueness'];
+export type ICatalogResourceLayerSource = CatalogResourceLayerSource;
+export type IBasemapLayerSourceInput = BasemapLayerSourceInput;
+export type IBasemapLayerSourceOutput = BasemapLayerSourceOutput<LayerRasterRecordModelType, CapabilityWMTS>;
 
-const ResolvedCatalogResourceLayerSourceSchema = createResolvedCatalogResourceLayerSourceSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IResolvedCatalogResourceLayerSource = z.infer<typeof ResolvedCatalogResourceLayerSourceSchema>;
-export type IUnresolvedCatalogResourceLayerSource = z.infer<typeof UnresolvedCatalogResourceLayerSourceSchema>;
+export type IBasemapLayerInput = BasemapLayerInput;
+export type IBasemapLayerOutput = BasemapLayerOutput<LayerRasterRecordModelType, CapabilityWMTS>;
 
-export type IBasemapLayerSourceInput = z.infer<typeof BasemapLayerSourceInputSchema>;
-
-const BasemapLayerSourceOutputSchema = createBasemapLayerSourceOutputSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IBasemapLayerSourceOutput = z.infer<typeof BasemapLayerSourceOutputSchema>;
-
-export type IBasemapLayerInput = z.infer<typeof BasemapLayerInputSchema>;
-
-const BasemapLayerOutputSchema = createBasemapLayerOutputSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IBasemapLayerOutput = z.infer<typeof BasemapLayerOutputSchema>;
-
-const BasemapSchema = createBasemapSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IBasemap = z.infer<typeof BasemapSchema>;
-
-export type IBasemapWriteInput = z.infer<typeof BasemapWriteInputSchema>;
-
-export type IPersistedBasemap = z.infer<typeof PersistedBasemapSchema>;
+export type IBasemapWriteInput = BasemapWriteInput;
+export type IPersistedBasemap = PersistedBasemap;
+export type IBasemap = Basemap<LayerRasterRecordModelType, CapabilityWMTS>;
 
 export interface IPortableBasemapThumbnail {
   file: string;
@@ -104,5 +77,3 @@ export interface IImportReview {
   thumbnail: IImportReviewThumbnail;
   layers: IImportReviewLayer[];
 }
-
-export type { CapabilityWMTS, LayerRasterRecordModelType };

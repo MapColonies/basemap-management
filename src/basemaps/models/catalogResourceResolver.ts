@@ -13,7 +13,6 @@ import {
   type ICatalogResourceLayerSource,
   type IRasterUniqueness,
   type IResolvableRasterUniqueness,
-  type IUnresolvedCatalogResourceLayerSource,
 } from './types';
 
 const WMTS_PROTOCOL = 'WMTS';
@@ -76,7 +75,7 @@ export class CatalogResourceResolver {
     getCapabilities: () => Promise<CapabilityWMTS[]>
   ): Promise<IBasemapLayerSourceOutput> {
     const reference = { type: SourceType.CATALOG_RESOURCE, domain: source.domain, uniqueness: source.uniqueness } as const;
-    const unresolved: IUnresolvedCatalogResourceLayerSource = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };
+    const unresolved: IBasemapLayerSourceOutput = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };
 
     const uniqueness = toResolvableUniqueness(source.uniqueness);
     if (uniqueness === undefined) {
