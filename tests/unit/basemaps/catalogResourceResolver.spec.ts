@@ -4,7 +4,7 @@ import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { Domain, ProductType, SourceType } from '@map-colonies/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
-import { Status, type ICatalogResourceLayerSource, type IExternalLayerSourceInput } from '@src/basemaps/models/types';
+import { Status, type ICatalogResourceLayerSource } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 
@@ -116,7 +116,7 @@ describe('CatalogResourceResolver', () => {
   });
 
   it('returns an external source as RESOLVED with its details unchanged, without any catalog or MapProxy lookup', async () => {
-    const external: IExternalLayerSourceInput = {
+    const external = {
       type: SourceType.EXTERNAL,
       details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho' },
     };
