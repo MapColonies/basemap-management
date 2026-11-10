@@ -2,6 +2,7 @@ import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
 import type { Domain } from '@map-colonies/types';
 import { CswClient, type IRequestExecutor } from '@map-colonies/csw-client';
+import { mcCswFieldRules, transformRecordsToEntity } from '@map-colonies/csw-client/adapters';
 import { PycswLayerCatalogRecord } from '@map-colonies/mc-model-types';
 import { SERVICES } from '@common/constants';
 import { UpstreamServiceError } from '@common/errors';
@@ -9,7 +10,6 @@ import type { IBasemapManagementEnv } from '@common/env';
 import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
 import type { IResolvableRasterUniqueness } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from './rasterCatalogClient';
-import { mapPycswRecordToLayer } from './pycswRasterRecordMapper';
 
 const RASTER_TYPENAME = 'mc:MCRasterRecord';
 const RASTER_OUTPUT_SCHEMA = 'http://schema.mapcolonies.com/raster';
@@ -90,7 +90,7 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
 
     let records: LayerRasterRecordModelType[];
     try {
-      records = rawMatches.map((raw) => mapPycswRecordToLayer(raw, PYCSW_KEYS));
+      records = transformRecordsToEntity<LayerRasterRecordModelType>(rawMatches, PYCSW_KEYS, mcCswFieldRules);
     } catch (error) {
       this.logger.error({ msg: 'failed to map raster catalog record from PyCSW - returned as unresolved', err: String(error), ...logContext });
       return null;
