@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import { z } from 'zod';
-import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType } from '@map-colonies/types';
+import type { z } from 'zod';
+import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType, RasterUniquenessSchema } from '@map-colonies/types';
 
 export const ImageryProtocolType = {
   WMS: OGC_ImageryProtocolType.WMS,
@@ -12,24 +12,5 @@ export const ImageryProtocolType = {
 } as const;
 export type ImageryProtocolType = (typeof ImageryProtocolType)[keyof typeof ImageryProtocolType];
 
-export const LinkModelSchema = z.object({
-  name: z.string().nullish(),
-  description: z.string().nullish(),
-  protocol: z.string().optional(),
-  url: z.string().optional(),
-});
-export type LinkModelType = z.infer<typeof LinkModelSchema>;
-
-export const LayerRasterRecordModelSchema = z
-  .object({
-    id: z.string(),
-    type: z.string().nullish(),
-    productName: z.string().optional(),
-    productId: z.string().nullish(),
-    productVersion: z.string().nullish(),
-    productType: z.string().optional(),
-    footprint: z.unknown().optional(),
-    links: z.array(LinkModelSchema).nullish(),
-  })
-  .passthrough();
+export const LayerRasterRecordModelSchema = RasterUniquenessSchema.passthrough();
 export type LayerRasterRecordModelType = z.infer<typeof LayerRasterRecordModelSchema>;

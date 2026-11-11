@@ -171,24 +171,11 @@ export type components = {
         template: string;
       }[];
     } | null;
-    /** @description The resolved catalog layer record (locally-defined LayerRasterRecordModelType fields; other record fields pass through). */
+    /** @description The resolved catalog layer record (its product reference; all other record fields pass through). */
     layerRasterRecord:
       | ({
-          id: string;
-          type?: string | null;
-          productName?: string;
           productId?: string | null;
-          productVersion?: string | null;
-          productType?: string;
-          footprint?: unknown;
-          links?:
-            | {
-                name?: string | null;
-                description?: string | null;
-                protocol?: string;
-                url?: string;
-              }[]
-            | null;
+          productType?: string | null;
         } & {
           [key: string]: unknown;
         })
