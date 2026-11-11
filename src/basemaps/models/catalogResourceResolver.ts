@@ -1,6 +1,7 @@
 import { inject, injectable } from 'tsyringe';
+import { z } from 'zod';
 import type { Logger } from '@map-colonies/js-logger';
-import { ProductType, SourceType } from '@map-colonies/types';
+import { OGC_ImageryProtocolType, ProductType, SourceType } from '@map-colonies/types';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
@@ -15,7 +16,8 @@ import {
   type IResolvableRasterUniqueness,
 } from './types';
 
-const WMTS_PROTOCOL = 'WMTS';
+const WMTS_PROTOCOL = OGC_ImageryProtocolType.WMTS;
+const wmtsLinkSchema = z.object({ protocol: z.literal(WMTS_PROTOCOL), name: z.string() }).passthrough();
 const RASTER_PRODUCT_TYPES = new Set<string>([
   ProductType.ORTHOPHOTO,
   ProductType.ORTHOPHOTO_HISTORY,
@@ -36,8 +38,17 @@ function toResolvableUniqueness({ productId, productType }: IRasterUniqueness): 
 }
 
 function findWmtsLinkName(layer: LayerRasterRecordModelType): string | undefined {
-  const name = layer.links?.find((link) => link.protocol === WMTS_PROTOCOL)?.name;
-  return name ?? undefined;
+  const links: unknown = layer.links;
+  if (!Array.isArray(links)) {
+    return undefined;
+  }
+  for (const link of links) {
+    const parsed = wmtsLinkSchema.safeParse(link);
+    if (parsed.success) {
+      return parsed.data.name;
+    }
+  }
+  return undefined;
 }
 
 @injectable()
