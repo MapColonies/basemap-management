@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 import type { z } from 'zod';
-import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType, RasterUniquenessSchema } from '@map-colonies/types';
+import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType } from '@map-colonies/types';
+import { RasterUniquenessSchema } from '@map-colonies/app-shared';
 
 export const ImageryProtocolType = {
   WMS: OGC_ImageryProtocolType.WMS,

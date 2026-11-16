@@ -24,10 +24,11 @@ function validateBusinessRules(input: BasemapWriteInput): void {
 }
 
 function messageFor(layer: BasemapLayerInput | undefined, issue: { path: (string | number)[]; message: string }): string {
-  const [, layerIndex, field, ...rest] = issue.path;
-  if (layer === undefined || layerIndex === undefined || field === undefined) {
-    return issue.message;
+  if (layer === undefined) {
+    const fieldPath = issue.path.join('.');
+    return fieldPath.length > 0 ? `${fieldPath}: ${issue.message}` : issue.message;
   }
+  const [, , field, ...rest] = issue.path;
   const fieldPath = [field, ...rest].join('.');
   return `layer "${layer.id}" ${fieldPath}: ${issue.message}`;
 }

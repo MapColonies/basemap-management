@@ -381,8 +381,6 @@ components:
       nullable: true
       description: >-
         The resolved catalog layer record (its product reference; all other record fields pass through).
-      required:
-        - id
       properties:
         productId:
           type: string
