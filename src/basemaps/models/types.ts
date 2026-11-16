@@ -29,12 +29,6 @@ export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
 export const PROTOCOLS: readonly string[] = Object.values(ImageryProtocolType);
 
-export interface BasemapThumbnail {
-  url: string;
-  width: typeof THUMBNAIL_DIMENSION_PIXELS;
-  height: typeof THUMBNAIL_DIMENSION_PIXELS;
-}
-
 export interface ResolvableRasterUniqueness {
   productId: string;
   productType: ProductType;
@@ -84,5 +78,3 @@ export interface ImportReview {
   thumbnail: ImportReviewThumbnail;
   layers: ImportReviewLayer[];
 }
-
-export type { CapabilityWMTS, LayerRasterRecord };

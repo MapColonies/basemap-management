@@ -5,7 +5,7 @@ import { Domain, ProductType } from '@map-colonies/types';
 import { SourceType } from '@map-colonies/app-shared';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
-import { Status, type CatalogResourceLayerSource, type ExternalLayerSource } from '@src/basemaps/models/types';
+import { Status, type CatalogResourceLayerSource } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 
@@ -117,7 +117,7 @@ describe('CatalogResourceResolver', () => {
   });
 
   it('returns an external source as RESOLVED with its details unchanged, without any catalog or MapProxy lookup', async () => {
-    const external: ExternalLayerSource = {
+    const external = {
       type: SourceType.EXTERNAL,
       details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho' },
     };
