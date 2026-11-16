@@ -380,8 +380,7 @@ components:
       type: object
       nullable: true
       description: >-
-        The resolved catalog layer record (locally-defined
-        LayerRasterRecord fields; other record fields pass through).
+        The resolved catalog layer record (its product reference; all other record fields pass through).
       required:
         - id
       properties:
