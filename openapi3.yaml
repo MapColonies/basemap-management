@@ -380,8 +380,7 @@ components:
       type: object
       nullable: true
       description: >-
-        The resolved catalog layer record (its product reference; all other
-        record fields pass through).
+        The resolved catalog layer record (its product reference; all other record fields pass through).
       properties:
         productId:
           type: string

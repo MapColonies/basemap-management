@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { validateBasemapWriteInput } from '@src/basemaps/models/basemapValidation';
-import type { IBasemapLayerInput, IBasemapWriteInput } from '@src/basemaps/models/types';
+import type { BasemapLayerInput, BasemapWriteInput } from '@src/basemaps/models/types';
 
-function baseInput(): IBasemapWriteInput {
+function baseInput(): BasemapWriteInput {
   return {
     name: 'Satellite Europe',
     thumbnail: { url: 'https://example.com/thumb.png', width: 128, height: 128 },
@@ -30,7 +31,7 @@ function baseInput(): IBasemapWriteInput {
   };
 }
 
-function layerAt(input: IBasemapWriteInput, index: number): IBasemapLayerInput {
+function layerAt(input: BasemapWriteInput, index: number): BasemapLayerInput {
   const layer = input.layers[index];
   if (!layer) {
     throw new Error(`test setup error: no layer at index ${index}`);

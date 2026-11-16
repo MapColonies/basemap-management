@@ -1,15 +1,16 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
-import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
-import { Status, type ICatalogResourceLayerSource } from '@src/basemaps/models/types';
+import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
+import { Status, type CatalogResourceLayerSource } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 
 const LINK_NAME = '12345-Orthophoto';
-const RECORD: LayerRasterRecordModelType = {
+const RECORD: LayerRasterRecord = {
   id: 'record-1',
   productId: '12345',
   productType: ProductType.ORTHOPHOTO,
@@ -25,7 +26,7 @@ const CAPABILITY: CapabilityWMTS = {
   tileMatrixSet: [{ tileMatrixSetID: 'WorldCRS84', tileMatrixLabels: ['0', '1'] }],
   url: [{ format: 'image/jpeg', resourceType: 'tile', template: 'https://mapproxy/wmts/{TileMatrix}/{TileCol}/{TileRow}.jpeg' }],
 };
-const CATALOG_SOURCE: ICatalogResourceLayerSource = {
+const CATALOG_SOURCE: CatalogResourceLayerSource = {
   type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,
   uniqueness: { productId: '12345', productType: ProductType.ORTHOPHOTO },
@@ -82,7 +83,7 @@ describe('CatalogResourceResolver', () => {
     ['no productType', { productId: '12345' }],
     ['an unknown productType', { productId: '12345', productType: 'NotARealProductType' as ProductType }],
   ])('returns UNRESOLVED (keeping the reference as stored) for %s, without any catalog or MapProxy lookup', async (_label, uniqueness) => {
-    const source: ICatalogResourceLayerSource = { ...CATALOG_SOURCE, uniqueness };
+    const source: CatalogResourceLayerSource = { ...CATALOG_SOURCE, uniqueness };
 
     await expect(resolver.createScope()(source)).resolves.toEqual({ ...UNRESOLVED, uniqueness });
     expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
@@ -131,7 +132,7 @@ describe('CatalogResourceResolver', () => {
   });
 
   it('fails loudly on a persisted source of an unknown (e.g. legacy RASTER_RESOURCE) type instead of mislabelling it', async () => {
-    const legacy = { type: 'RASTER_RESOURCE', productId: '12345', productType: ProductType.ORTHOPHOTO } as unknown as ICatalogResourceLayerSource;
+    const legacy = { type: 'RASTER_RESOURCE', productId: '12345', productType: ProductType.ORTHOPHOTO } as unknown as CatalogResourceLayerSource;
 
     await expect(resolver.createScope()(legacy)).rejects.toThrow(/unsupported type "RASTER_RESOURCE"/);
   });

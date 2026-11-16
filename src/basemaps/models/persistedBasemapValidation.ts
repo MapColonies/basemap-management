@@ -1,19 +1,19 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { z } from 'zod';
 import type { Logger } from '@map-colonies/js-logger';
-import { PersistedBasemapSchema } from '@map-colonies/types';
-import type { IPersistedBasemap } from './types';
+import { PersistedBasemapSchema } from '@map-colonies/app-shared';
+import type { PersistedBasemap } from './types';
 
 const IdGuessSchema = z.object({ id: z.string() }).passthrough();
 
 export interface SplitPersistedBasemaps {
-  valid: IPersistedBasemap[];
+  valid: PersistedBasemap[];
   invalidRaw: unknown[];
   invalidIds: ReadonlySet<string>;
 }
 
 export function splitPersistedBasemaps(raw: unknown[], logger: Logger): SplitPersistedBasemaps {
-  const valid: IPersistedBasemap[] = [];
+  const valid: PersistedBasemap[] = [];
   const invalidRaw: unknown[] = [];
   const invalidIds = new Set<string>();
 

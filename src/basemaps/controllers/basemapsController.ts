@@ -9,11 +9,11 @@ import { getUploadedFile } from '@common/multipart';
 import type { IBasemapManagementEnv } from '@common/env';
 import { BLOB_STORAGE_CLIENT, type IBlobStorageClient } from '@src/clients/blobStorage/blobStorageClient';
 import { sniffImage } from '../thumbnails/imageFormat';
-import { THUMBNAIL_DIMENSION_PIXELS, type IBasemapWriteInput } from '../models/types';
+import { THUMBNAIL_DIMENSION_PIXELS, type BasemapWriteInput } from '../models/types';
 import { BasemapsManager } from '../models/basemapsManager';
 
-function toWriteInput(body: unknown): IBasemapWriteInput {
-  return body as IBasemapWriteInput;
+function toWriteInput(body: unknown): BasemapWriteInput {
+  return body as BasemapWriteInput;
 }
 
 @injectable()

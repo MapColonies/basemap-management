@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { z } from 'zod';
-import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType, RasterUniquenessSchema } from '@map-colonies/types';
+import { OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType } from '@map-colonies/types';
+import { RasterUniquenessSchema } from '@map-colonies/app-shared';
 
 export const ImageryProtocolType = {
   WMS: OGC_ImageryProtocolType.WMS,
@@ -12,5 +13,5 @@ export const ImageryProtocolType = {
 } as const;
 export type ImageryProtocolType = (typeof ImageryProtocolType)[keyof typeof ImageryProtocolType];
 
-export const LayerRasterRecordModelSchema = RasterUniquenessSchema.passthrough();
-export type LayerRasterRecordModelType = z.infer<typeof LayerRasterRecordModelSchema>;
+export const LayerRasterRecordSchema = RasterUniquenessSchema.passthrough();
+export type LayerRasterRecord = z.infer<typeof LayerRasterRecordSchema>;

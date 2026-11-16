@@ -1,10 +1,11 @@
 import { jsLogger, type Logger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
 import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
-import { type IBasemap, type IBasemapLayerInput, type IBasemapWriteInput, type IPersistedBasemap } from '@src/basemaps/models/types';
+import { type Basemap, type BasemapLayerInput, type BasemapWriteInput, type PersistedBasemap } from '@src/basemaps/models/types';
 
 function fakeLogger(): Logger {
   return { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn(), fatal: vi.fn(), trace: vi.fn() } as unknown as Logger;
@@ -41,7 +42,7 @@ class FakeConfigServerClient implements IConfigServerClient {
   }
 }
 
-function writeInput(overrides: Partial<IBasemapWriteInput> = {}): IBasemapWriteInput {
+function writeInput(overrides: Partial<BasemapWriteInput> = {}): BasemapWriteInput {
   return {
     name: 'Satellite Europe',
     thumbnail: { url: 'https://example.com/thumb.png', width: 128, height: 128 },
@@ -101,8 +102,8 @@ describe('BasemapsManager', () => {
         layer: { id: 'record-1' },
         capabilities: { id: 'cap-1' },
       },
-    } as unknown as IBasemapLayerInput;
-    const external: IBasemapLayerInput = {
+    } as unknown as BasemapLayerInput;
+    const external: BasemapLayerInput = {
       id: 'l2',
       order: 1,
       opacity: 0.5,
@@ -168,14 +169,14 @@ describe('BasemapsManager', () => {
       await manager.create(writeInput({ name: 'A' }));
       await manager.create(writeInput({ name: 'B' }));
 
-      const basemaps: IBasemap[] = await manager.list();
+      const basemaps: Basemap[] = await manager.list();
 
       expect(basemaps.map((basemap) => basemap.name).sort()).toEqual(['A', 'B']);
     });
   });
 
   describe('malformed persisted data', () => {
-    const CORRUPT_ENTRY = { id: 'corrupt-1', name: 42 } as unknown as IPersistedBasemap;
+    const CORRUPT_ENTRY = { id: 'corrupt-1', name: 42 } as unknown as PersistedBasemap;
 
     it('#list skips a corrupt entry, keeps valid ones, and logs it with its id', async () => {
       const created = await manager.create(writeInput({ name: 'A' }));

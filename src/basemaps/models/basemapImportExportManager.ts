@@ -7,7 +7,7 @@ import { writeBasemapPackage } from '../packaging/basemapPackageWriter';
 import { findCurrentOwner, findPreviewOwner } from './defaultRolePolicy';
 import { BasemapsManager } from './basemapsManager';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
-import type { IBasemapLayerInput, IImportReview, IImportReviewLayer, IPortableBasemap } from './types';
+import type { BasemapLayerInput, ImportReview, ImportReviewLayer, PortableBasemap } from './types';
 
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/png': 'png',
@@ -39,7 +39,7 @@ export class BasemapImportExportManager {
     const contentType = thumbnailResponse.headers.get('content-type') ?? '';
     const extension = EXTENSION_BY_MIME_TYPE[contentType] ?? 'bin';
 
-    const portable: IPortableBasemap = {
+    const portable: PortableBasemap = {
       name: basemap.name,
       isCurrent: basemap.isCurrent,
       isForPreview: basemap.isForPreview,
@@ -51,7 +51,7 @@ export class BasemapImportExportManager {
     return writeBasemapPackage(portable, thumbnailBuffer);
   }
 
-  public async validateImport(archiveBuffer: Buffer): Promise<IImportReview> {
+  public async validateImport(archiveBuffer: Buffer): Promise<ImportReview> {
     const { portable, thumbnail } = await readBasemapPackage(archiveBuffer);
     const existingBasemaps = await this.basemapsManager.listPersisted();
 
@@ -80,7 +80,7 @@ export class BasemapImportExportManager {
     };
   }
 
-  private async toReviewLayer(layer: IBasemapLayerInput, resolve: SourceResolver): Promise<IImportReviewLayer> {
+  private async toReviewLayer(layer: BasemapLayerInput, resolve: SourceResolver): Promise<ImportReviewLayer> {
     const source = await resolve(layer.source);
     return {
       id: layer.id,

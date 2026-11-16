@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Logger } from '@map-colonies/js-logger';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { splitPersistedBasemaps } from '@src/basemaps/models/persistedBasemapValidation';
-import type { IPersistedBasemap } from '@src/basemaps/models/types';
+import type { PersistedBasemap } from '@src/basemaps/models/types';
 
-function validEntry(id: string): IPersistedBasemap {
+function validEntry(id: string): PersistedBasemap {
   return {
     id,
     name: `Basemap ${id}`,

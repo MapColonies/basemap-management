@@ -1,9 +1,10 @@
 import jsZip from 'jszip';
-import { Domain, SourceType } from '@map-colonies/types';
+import { Domain } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { ValidationError } from '@common/errors';
 import { sniffImage } from '../thumbnails/imageFormat';
 import { PROTOCOLS, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
-import type { IBasemapLayerInput, IImportPackageThumbnail, IPortableBasemap } from '../models/types';
+import type { BasemapLayerInput, ImportPackageThumbnail, PortableBasemap } from '../models/types';
 
 const MAX_ENTRIES = 10;
 const BYTES_PER_KILOBYTE = 1024;
@@ -13,8 +14,8 @@ const MIN_OPACITY = 0;
 const MAX_OPACITY = 1;
 
 interface IParsedBasemapPackage {
-  portable: IPortableBasemap;
-  thumbnail: IImportPackageThumbnail;
+  portable: PortableBasemap;
+  thumbnail: ImportPackageThumbnail;
 }
 
 function isOptionalString(value: unknown): boolean {
@@ -28,7 +29,7 @@ function isSafeEntryName(name: string): boolean {
   return !name.startsWith('.');
 }
 
-function assertValidPortableLayer(layer: unknown, index: number): asserts layer is IBasemapLayerInput {
+function assertValidPortableLayer(layer: unknown, index: number): asserts layer is BasemapLayerInput {
   if (typeof layer !== 'object' || layer === null) {
     throw new ValidationError(`layers[${index}] is not an object`);
   }
@@ -83,7 +84,7 @@ function assertValidPortableLayer(layer: unknown, index: number): asserts layer 
   }
 }
 
-function assertValidPortableBasemap(manifest: unknown): asserts manifest is IPortableBasemap {
+function assertValidPortableBasemap(manifest: unknown): asserts manifest is PortableBasemap {
   if (typeof manifest !== 'object' || manifest === null) {
     throw new ValidationError('basemap.json is not an object');
   }

@@ -1,6 +1,7 @@
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { Status } from '@src/basemaps/models/types';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { BasemapImportExportManager } from '@src/basemaps/models/basemapImportExportManager';
@@ -9,7 +10,7 @@ import { writeBasemapPackage } from '@src/basemaps/packaging/basemapPackageWrite
 import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import type { IBasemap } from '@src/basemaps/models/types';
+import type { Basemap } from '@src/basemaps/models/types';
 
 const DIMENSION = 128;
 const KNOWN_PRODUCT_ID = '12345';
@@ -53,7 +54,7 @@ describe('BasemapImportExportManager', () => {
   let basemapsManager: BasemapsManager;
   let rasterCatalogClient: IRasterCatalogClient;
   let manager: BasemapImportExportManager;
-  let existingBasemap: IBasemap;
+  let existingBasemap: Basemap;
 
   beforeEach(async () => {
     const logger = await jsLogger({ enabled: false });

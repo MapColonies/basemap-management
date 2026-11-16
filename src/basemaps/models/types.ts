@@ -1,79 +1,80 @@
-import type {
-  ProductType,
-  Basemap,
+import type { ProductType } from '@map-colonies/types';
+import {
+  type Basemap as SharedBasemap,
+  type BasemapLayerInput,
+  type BasemapLayerOutput as SharedBasemapLayerOutput,
+  type BasemapLayerSourceInput,
+  type BasemapLayerSourceOutput as SharedBasemapLayerSourceOutput,
+  type BasemapWriteInput,
+  type CatalogResourceLayerSource,
+  type ExternalLayerSource,
+  type PersistedBasemap,
+  type RasterUniqueness,
+} from '@map-colonies/app-shared';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
+import { ImageryProtocolType, type LayerRasterRecord } from './catalogTypes';
+
+export { ResourceResolutionStatus as Status } from '@map-colonies/app-shared';
+export type {
   BasemapLayerInput,
-  BasemapLayerOutput,
   BasemapLayerSourceInput,
-  BasemapLayerSourceOutput,
   BasemapWriteInput,
   CatalogResourceLayerSource,
+  ExternalLayerSource,
   PersistedBasemap,
   RasterUniqueness,
-} from '@map-colonies/types';
-import type { CapabilityWMTS } from '@map-colonies/wmts-client';
-import { ImageryProtocolType, type LayerRasterRecordModelType } from './catalogTypes';
-
-export { ResourceResolutionStatus as Status } from '@map-colonies/types';
+};
 
 export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
 export const PROTOCOLS: readonly string[] = Object.values(ImageryProtocolType);
 
-export interface IResolvableRasterUniqueness {
+export interface ResolvableRasterUniqueness {
   productId: string;
   productType: ProductType;
 }
 
-export type IRasterUniqueness = RasterUniqueness;
+export type BasemapLayerSourceOutput = SharedBasemapLayerSourceOutput<LayerRasterRecord, CapabilityWMTS>;
+export type BasemapLayerOutput = SharedBasemapLayerOutput<LayerRasterRecord, CapabilityWMTS>;
+export type Basemap = SharedBasemap<LayerRasterRecord, CapabilityWMTS>;
 
-export type ICatalogResourceLayerSource = CatalogResourceLayerSource;
-export type IBasemapLayerSourceInput = BasemapLayerSourceInput;
-export type IBasemapLayerSourceOutput = BasemapLayerSourceOutput<LayerRasterRecordModelType, CapabilityWMTS>;
-
-export type IBasemapLayerInput = BasemapLayerInput;
-export type IBasemapLayerOutput = BasemapLayerOutput<LayerRasterRecordModelType, CapabilityWMTS>;
-
-export type IBasemapWriteInput = BasemapWriteInput;
-export type IPersistedBasemap = PersistedBasemap;
-export type IBasemap = Basemap<LayerRasterRecordModelType, CapabilityWMTS>;
-
-export interface IPortableBasemapThumbnail {
+export interface PortableBasemapThumbnail {
   file: string;
   width: number;
   height: number;
 }
 
-export interface IPortableBasemap {
+export interface PortableBasemap {
   name: string;
   isCurrent: boolean;
   isForPreview: boolean;
-  thumbnail: IPortableBasemapThumbnail;
-  layers: IBasemapLayerInput[];
+  thumbnail: PortableBasemapThumbnail;
+  layers: BasemapLayerInput[];
 }
 
-export interface IImportPackageThumbnail {
+export interface ImportPackageThumbnail {
   mimeType: 'image/png' | 'image/webp';
   buffer: Buffer;
   width: number;
   height: number;
 }
 
-export interface IImportReviewRoleConflict {
+export interface ImportReviewRoleConflict {
   basemapId: string;
   basemapName: string;
 }
 
-export type IImportReviewLayer = IBasemapLayerOutput;
+export type ImportReviewLayer = BasemapLayerOutput;
 
-export type IImportReviewThumbnail =
+export type ImportReviewThumbnail =
   { included: true; width: number; height: number; mimeType: 'image/png' | 'image/webp'; dataBase64: string } | { included: false };
 
-export interface IImportReview {
+export interface ImportReview {
   name: string;
   isCurrent: boolean;
   isForPreview: boolean;
-  currentRoleConflict?: IImportReviewRoleConflict;
-  previewRoleConflict?: IImportReviewRoleConflict;
-  thumbnail: IImportReviewThumbnail;
-  layers: IImportReviewLayer[];
+  currentRoleConflict?: ImportReviewRoleConflict;
+  previewRoleConflict?: ImportReviewRoleConflict;
+  thumbnail: ImportReviewThumbnail;
+  layers: ImportReviewLayer[];
 }

@@ -1,9 +1,9 @@
-import { SourceType, BasemapWriteInputSchema } from '@map-colonies/types';
+import { SourceType, BasemapWriteInputSchema } from '@map-colonies/app-shared';
 import { ValidationError } from '@common/errors';
 import { PROTOCOLS } from './types';
-import type { IBasemapLayerInput, IBasemapWriteInput } from './types';
+import type { BasemapLayerInput, BasemapWriteInput } from './types';
 
-function validateBusinessRules(input: IBasemapWriteInput): void {
+function validateBusinessRules(input: BasemapWriteInput): void {
   const seenIds = new Set<string>();
   const seenOrders = new Set<number>();
   for (const layer of input.layers) {
@@ -23,16 +23,17 @@ function validateBusinessRules(input: IBasemapWriteInput): void {
   }
 }
 
-function messageFor(layer: IBasemapLayerInput | undefined, issue: { path: (string | number)[]; message: string }): string {
-  const [, layerIndex, field, ...rest] = issue.path;
-  if (layer === undefined || layerIndex === undefined || field === undefined) {
-    return issue.message;
+function messageFor(layer: BasemapLayerInput | undefined, issue: { path: (string | number)[]; message: string }): string {
+  if (layer === undefined) {
+    const fieldPath = issue.path.join('.');
+    return fieldPath.length > 0 ? `${fieldPath}: ${issue.message}` : issue.message;
   }
+  const [, , field, ...rest] = issue.path;
   const fieldPath = [field, ...rest].join('.');
   return `layer "${layer.id}" ${fieldPath}: ${issue.message}`;
 }
 
-export function validateBasemapWriteInput(input: IBasemapWriteInput): void {
+export function validateBasemapWriteInput(input: BasemapWriteInput): void {
   const result = BasemapWriteInputSchema.safeParse(input);
   if (!result.success) {
     const [issue] = result.error.issues;
