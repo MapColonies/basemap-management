@@ -8,7 +8,8 @@ import type { Response as SuperagentResponse } from 'superagent';
 import { createRequestSender, type RequestSender } from '@map-colonies/openapi-supertest';
 import type { Application } from 'express';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import type { paths, operations } from '@openapi';
 import { Status } from '@src/basemaps/models/types';
 import { getApp } from '@src/app';
@@ -18,12 +19,12 @@ import { CONFIG_SERVER_CLIENT, type IConfigServerClient, type IConfigServerDocum
 import { BLOB_STORAGE_CLIENT, type IBlobStorageClient, type IUploadBlobParams } from '@src/clients/blobStorage/blobStorageClient';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
+import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
 
 const DIMENSION = 128;
 const KNOWN_PRODUCT_ID = '12345';
 const WMTS_LINK_NAME = '12345-Orthophoto';
-const RESOLVED_LAYER: LayerRasterRecordModelType = {
+const RESOLVED_LAYER: LayerRasterRecord = {
   id: 'record-1',
   productName: 'France Satellite',
   links: [{ protocol: 'WMTS', name: WMTS_LINK_NAME, url: 'https://mapproxy/wmts' }],
@@ -72,7 +73,7 @@ class FakeBlobStorageClient implements IBlobStorageClient {
 
 class FakeRasterCatalogClient implements IRasterCatalogClient {
   // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async resolveLayer(_domain: Domain.RASTER, uniqueness: { productId: string }): Promise<LayerRasterRecordModelType | null> {
+  public async resolveLayer(_domain: Domain.RASTER, uniqueness: { productId: string }): Promise<LayerRasterRecord | null> {
     return uniqueness.productId === KNOWN_PRODUCT_ID ? RESOLVED_LAYER : null;
   }
 }

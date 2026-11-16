@@ -1,19 +1,19 @@
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
-import { ProductType, SourceType } from '@map-colonies/types';
+import { ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import type { LayerRasterRecordModelType } from './catalogTypes';
+import type { LayerRasterRecord } from './catalogTypes';
 import {
   Status,
-  type IBasemapLayerSourceInput,
-  type IBasemapLayerSourceOutput,
-  type ICatalogResourceLayerSource,
-  type IRasterUniqueness,
-  type IResolvableRasterUniqueness,
-  type IUnresolvedCatalogResourceLayerSource,
+  type BasemapLayerSourceInput,
+  type BasemapLayerSourceOutput,
+  type CatalogResourceLayerSource,
+  type RasterUniqueness,
+  type ResolvableRasterUniqueness,
 } from './types';
 
 const WMTS_PROTOCOL = 'WMTS';
@@ -29,14 +29,14 @@ const RASTER_PRODUCT_TYPES = new Set<string>([
   ProductType.RASTER_VECTOR_BEST,
 ]);
 
-function toResolvableUniqueness({ productId, productType }: IRasterUniqueness): IResolvableRasterUniqueness | undefined {
+function toResolvableUniqueness({ productId, productType }: RasterUniqueness): ResolvableRasterUniqueness | undefined {
   if (typeof productId !== 'string' || productId.length === 0 || typeof productType !== 'string' || !RASTER_PRODUCT_TYPES.has(productType)) {
     return undefined;
   }
   return { productId, productType: productType as ProductType };
 }
 
-function findWmtsLinkName(layer: LayerRasterRecordModelType): string | undefined {
+function findWmtsLinkName(layer: LayerRasterRecord): string | undefined {
   const name = layer.links?.find((link) => link.protocol === WMTS_PROTOCOL)?.name;
   return name ?? undefined;
 }
@@ -72,11 +72,11 @@ export class CatalogResourceResolver {
   }
 
   private async resolveCatalogResource(
-    source: ICatalogResourceLayerSource,
+    source: CatalogResourceLayerSource,
     getCapabilities: () => Promise<CapabilityWMTS[]>
-  ): Promise<IBasemapLayerSourceOutput> {
+  ): Promise<BasemapLayerSourceOutput> {
     const reference = { type: SourceType.CATALOG_RESOURCE, domain: source.domain, uniqueness: source.uniqueness } as const;
-    const unresolved: IUnresolvedCatalogResourceLayerSource = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };
+    const unresolved: BasemapLayerSourceOutput = { ...reference, status: Status.UNRESOLVED, layer: null, capabilities: null };
 
     const uniqueness = toResolvableUniqueness(source.uniqueness);
     if (uniqueness === undefined) {
@@ -105,4 +105,4 @@ export class CatalogResourceResolver {
   }
 }
 
-export type SourceResolver = (source: IBasemapLayerSourceInput) => Promise<IBasemapLayerSourceOutput>;
+export type SourceResolver = (source: BasemapLayerSourceInput) => Promise<BasemapLayerSourceOutput>;

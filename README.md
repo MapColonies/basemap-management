@@ -261,13 +261,13 @@ A catalog layer is resolved only when all of these hold:
 Types live in [src/basemaps/models/types.ts](src/basemaps/models/types.ts) and [catalogTypes.ts](src/basemaps/models/catalogTypes.ts).
 
 ```ts
-interface IBasemap {                    // API output
+interface Basemap {                     // API output
   id: string; name: string;
   thumbnail: { url: string; width: 128; height: 128 };
   isCurrent: boolean; isForPreview: boolean;
-  layers: IBasemapLayerOutput[];
+  layers: BasemapLayerOutput[];
 }
-interface IBasemapLayerBase {
+interface BasemapLayerBase {
   id: string; order: number; opacity: number;   // opacity 0..1
   shouldBeUsedInModelDraping?: boolean;
 }
@@ -277,7 +277,7 @@ interface IBasemapLayerBase {
 - **`uniqueness`**: identity of a catalog product, `{ productId, productType }`. It is the only persisted identity of a catalog layer, so Basemaps stay portable across environments (no environment-specific record ids).
 - **Source types**: see [Layer source types](#layer-source-types).
 
-**Persisted vs. returned.** What is stored in config-server (`IPersistedBasemap`) is the input shape: catalog layers as `CATALOG_RESOURCE` references. Responses are built on every request by resolving those references (`IBasemap`). Resolved data is never written back, so catalog or MapProxy changes show up without touching stored Basemaps.
+**Persisted vs. returned.** What is stored in config-server (`PersistedBasemap`) is the input shape: catalog layers as `CATALOG_RESOURCE` references. Responses are built on every request by resolving those references (`Basemap`). Resolved data is never written back, so catalog or MapProxy changes show up without touching stored Basemaps.
 
 ```jsonc
 // config-server document for CONFIG_BASEMAPS_NAME

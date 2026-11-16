@@ -12,15 +12,15 @@ export const ImageryProtocolType = {
 } as const;
 export type ImageryProtocolType = (typeof ImageryProtocolType)[keyof typeof ImageryProtocolType];
 
-export const LinkModelSchema = z.object({
+export const LinkSchema = z.object({
   name: z.string().nullish(),
   description: z.string().nullish(),
   protocol: z.string().optional(),
   url: z.string().optional(),
 });
-export type LinkModelType = z.infer<typeof LinkModelSchema>;
+export type Link = z.infer<typeof LinkSchema>;
 
-export const LayerRasterRecordModelSchema = z
+export const LayerRasterRecordSchema = z
   .object({
     id: z.string(),
     type: z.string().nullish(),
@@ -29,7 +29,7 @@ export const LayerRasterRecordModelSchema = z
     productVersion: z.string().nullish(),
     productType: z.string().optional(),
     footprint: z.unknown().optional(),
-    links: z.array(LinkModelSchema).nullish(),
+    links: z.array(LinkSchema).nullish(),
   })
   .passthrough();
-export type LayerRasterRecordModelType = z.infer<typeof LayerRasterRecordModelSchema>;
+export type LayerRasterRecord = z.infer<typeof LayerRasterRecordSchema>;

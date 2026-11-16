@@ -1,108 +1,88 @@
-/* eslint-disable @typescript-eslint/naming-convention, import-x/exports-last */
-import type { z } from 'zod';
+import type { ProductType } from '@map-colonies/types';
 import {
-  type ProductType,
-  type BasemapLayerSourceInputSchema,
-  type BasemapLayerInputSchema,
-  type BasemapWriteInputSchema,
-  type PersistedBasemapSchema,
-  type CatalogResourceLayerSourceSchema,
-  type ExternalLayerDetailsSchema,
-  type ExternalLayerSourceInputSchema,
-  type ExternalLayerSourceOutputSchema,
-  type UnresolvedCatalogResourceLayerSourceSchema,
-  createResolvedCatalogResourceLayerSourceSchema,
-  createBasemapLayerSourceOutputSchema,
-  createBasemapLayerOutputSchema,
-  createBasemapSchema,
-} from '@map-colonies/types';
-import { CapabilityWMTSSchema, type CapabilityWMTS } from '@map-colonies/wmts-client';
-import { ImageryProtocolType, LayerRasterRecordModelSchema, type LayerRasterRecordModelType } from './catalogTypes';
+  type Basemap as SharedBasemap,
+  type BasemapLayerInput,
+  type BasemapLayerOutput as SharedBasemapLayerOutput,
+  type BasemapLayerSourceInput,
+  type BasemapLayerSourceOutput as SharedBasemapLayerSourceOutput,
+  type BasemapWriteInput,
+  type CatalogResourceLayerSource,
+  type ExternalLayerSource,
+  type PersistedBasemap,
+  type RasterUniqueness,
+} from '@map-colonies/app-shared';
+import type { CapabilityWMTS } from '@map-colonies/wmts-client';
+import { ImageryProtocolType, type LayerRasterRecord } from './catalogTypes';
 
-export { ResourceResolutionStatus as Status } from '@map-colonies/types';
+export { ResourceResolutionStatus as Status } from '@map-colonies/app-shared';
+export type {
+  BasemapLayerInput,
+  BasemapLayerSourceInput,
+  BasemapWriteInput,
+  CatalogResourceLayerSource,
+  ExternalLayerSource,
+  PersistedBasemap,
+  RasterUniqueness,
+};
 
 export const THUMBNAIL_DIMENSION_PIXELS = 128;
 
 export const PROTOCOLS: readonly string[] = Object.values(ImageryProtocolType);
 
-export interface IBasemapThumbnail {
+export interface BasemapThumbnail {
   url: string;
   width: typeof THUMBNAIL_DIMENSION_PIXELS;
   height: typeof THUMBNAIL_DIMENSION_PIXELS;
 }
 
-export interface IResolvableRasterUniqueness {
+export interface ResolvableRasterUniqueness {
   productId: string;
   productType: ProductType;
 }
 
-export type IExternalLayerDetails = z.infer<typeof ExternalLayerDetailsSchema>;
-export type IExternalLayerSourceInput = z.infer<typeof ExternalLayerSourceInputSchema>;
-export type IExternalLayerSourceOutput = z.infer<typeof ExternalLayerSourceOutputSchema>;
+export type BasemapLayerSourceOutput = SharedBasemapLayerSourceOutput<LayerRasterRecord, CapabilityWMTS>;
+export type BasemapLayerOutput = SharedBasemapLayerOutput<LayerRasterRecord, CapabilityWMTS>;
+export type Basemap = SharedBasemap<LayerRasterRecord, CapabilityWMTS>;
 
-export type ICatalogResourceLayerSource = z.infer<typeof CatalogResourceLayerSourceSchema>;
-export type IRasterUniqueness = ICatalogResourceLayerSource['uniqueness'];
-
-const ResolvedCatalogResourceLayerSourceSchema = createResolvedCatalogResourceLayerSourceSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IResolvedCatalogResourceLayerSource = z.infer<typeof ResolvedCatalogResourceLayerSourceSchema>;
-export type IUnresolvedCatalogResourceLayerSource = z.infer<typeof UnresolvedCatalogResourceLayerSourceSchema>;
-
-export type IBasemapLayerSourceInput = z.infer<typeof BasemapLayerSourceInputSchema>;
-
-const BasemapLayerSourceOutputSchema = createBasemapLayerSourceOutputSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IBasemapLayerSourceOutput = z.infer<typeof BasemapLayerSourceOutputSchema>;
-
-export type IBasemapLayerInput = z.infer<typeof BasemapLayerInputSchema>;
-
-const BasemapLayerOutputSchema = createBasemapLayerOutputSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IBasemapLayerOutput = z.infer<typeof BasemapLayerOutputSchema>;
-
-const BasemapSchema = createBasemapSchema(LayerRasterRecordModelSchema, CapabilityWMTSSchema);
-export type IBasemap = z.infer<typeof BasemapSchema>;
-
-export type IBasemapWriteInput = z.infer<typeof BasemapWriteInputSchema>;
-
-export type IPersistedBasemap = z.infer<typeof PersistedBasemapSchema>;
-
-export interface IPortableBasemapThumbnail {
+export interface PortableBasemapThumbnail {
   file: string;
   width: number;
   height: number;
 }
 
-export interface IPortableBasemap {
+export interface PortableBasemap {
   name: string;
   isCurrent: boolean;
   isForPreview: boolean;
-  thumbnail: IPortableBasemapThumbnail;
-  layers: IBasemapLayerInput[];
+  thumbnail: PortableBasemapThumbnail;
+  layers: BasemapLayerInput[];
 }
 
-export interface IImportPackageThumbnail {
+export interface ImportPackageThumbnail {
   mimeType: 'image/png' | 'image/webp';
   buffer: Buffer;
   width: number;
   height: number;
 }
 
-export interface IImportReviewRoleConflict {
+export interface ImportReviewRoleConflict {
   basemapId: string;
   basemapName: string;
 }
 
-export type IImportReviewLayer = IBasemapLayerOutput;
+export type ImportReviewLayer = BasemapLayerOutput;
 
-export type IImportReviewThumbnail =
+export type ImportReviewThumbnail =
   { included: true; width: number; height: number; mimeType: 'image/png' | 'image/webp'; dataBase64: string } | { included: false };
 
-export interface IImportReview {
+export interface ImportReview {
   name: string;
   isCurrent: boolean;
   isForPreview: boolean;
-  currentRoleConflict?: IImportReviewRoleConflict;
-  previewRoleConflict?: IImportReviewRoleConflict;
-  thumbnail: IImportReviewThumbnail;
-  layers: IImportReviewLayer[];
+  currentRoleConflict?: ImportReviewRoleConflict;
+  previewRoleConflict?: ImportReviewRoleConflict;
+  thumbnail: ImportReviewThumbnail;
+  layers: ImportReviewLayer[];
 }
 
-export type { CapabilityWMTS, LayerRasterRecordModelType };
+export type { CapabilityWMTS, LayerRasterRecord };

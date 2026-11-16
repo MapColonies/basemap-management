@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { applyDefaultRoles, assertSingleOwnerPerRole, findCurrentOwner, findPreviewOwner } from '@src/basemaps/models/defaultRolePolicy';
-import type { IPersistedBasemap } from '@src/basemaps/models/types';
+import type { PersistedBasemap } from '@src/basemaps/models/types';
 
-function makeBasemap(overrides: Partial<IPersistedBasemap> & Pick<IPersistedBasemap, 'id'>): IPersistedBasemap {
+function makeBasemap(overrides: Partial<PersistedBasemap> & Pick<PersistedBasemap, 'id'>): PersistedBasemap {
   return {
     name: overrides.id,
     thumbnail: { url: `https://example.com/${overrides.id}.png`, width: 128, height: 128 },

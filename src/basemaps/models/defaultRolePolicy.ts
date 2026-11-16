@@ -1,17 +1,17 @@
-import type { IPersistedBasemap } from './types';
+import type { PersistedBasemap } from './types';
 
 export interface IDefaultRoleUpdate {
   isCurrent?: boolean;
   isForPreview?: boolean;
 }
 
-export const findCurrentOwner = (basemaps: readonly IPersistedBasemap[]): IPersistedBasemap | undefined =>
+export const findCurrentOwner = (basemaps: readonly PersistedBasemap[]): PersistedBasemap | undefined =>
   basemaps.find((basemap) => basemap.isCurrent);
 
-export const findPreviewOwner = (basemaps: readonly IPersistedBasemap[]): IPersistedBasemap | undefined =>
+export const findPreviewOwner = (basemaps: readonly PersistedBasemap[]): PersistedBasemap | undefined =>
   basemaps.find((basemap) => basemap.isForPreview);
 
-export function applyDefaultRoles(basemaps: readonly IPersistedBasemap[], targetId: string, update: IDefaultRoleUpdate): IPersistedBasemap[] {
+export function applyDefaultRoles(basemaps: readonly PersistedBasemap[], targetId: string, update: IDefaultRoleUpdate): PersistedBasemap[] {
   return basemaps.map((basemap) => {
     if (basemap.id === targetId) {
       return {
@@ -29,7 +29,7 @@ export function applyDefaultRoles(basemaps: readonly IPersistedBasemap[], target
   });
 }
 
-export function assertSingleOwnerPerRole(basemaps: readonly IPersistedBasemap[]): void {
+export function assertSingleOwnerPerRole(basemaps: readonly PersistedBasemap[]): void {
   const currentOwnerIds = basemaps.filter((basemap) => basemap.isCurrent).map((basemap) => basemap.id);
   const previewOwnerIds = basemaps.filter((basemap) => basemap.isForPreview).map((basemap) => basemap.id);
 

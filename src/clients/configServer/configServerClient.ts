@@ -1,7 +1,7 @@
-import type { IPersistedBasemap } from '@src/basemaps/models/types';
+import type { PersistedBasemap } from '@src/basemaps/models/types';
 
 export interface IConfigServerDocument {
-  basemaps: IPersistedBasemap[];
+  basemaps: PersistedBasemap[];
 }
 
 export interface IRawConfigServerDocument {

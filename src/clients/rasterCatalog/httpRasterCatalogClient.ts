@@ -6,8 +6,8 @@ import { PycswLayerCatalogRecord } from '@map-colonies/mc-model-types';
 import { SERVICES } from '@common/constants';
 import { UpstreamServiceError } from '@common/errors';
 import type { IBasemapManagementEnv } from '@common/env';
-import type { LayerRasterRecordModelType } from '@src/basemaps/models/catalogTypes';
-import type { IResolvableRasterUniqueness } from '@src/basemaps/models/types';
+import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
+import type { ResolvableRasterUniqueness } from '@src/basemaps/models/types';
 import type { IRasterCatalogClient } from './rasterCatalogClient';
 import { mapPycswRecordToLayer } from './pycswRasterRecordMapper';
 
@@ -18,11 +18,11 @@ const MAX_RECORDS = 2;
 
 const PYCSW_KEYS = PycswLayerCatalogRecord.getPyCSWMappings();
 
-function isValidRasterRecord(record: LayerRasterRecordModelType): boolean {
+function isValidRasterRecord(record: LayerRasterRecord): boolean {
   return typeof record.id === 'string' && record.id.length > 0 && Array.isArray(record.links);
 }
 
-function pickHighestVersion(records: LayerRasterRecordModelType[]): LayerRasterRecordModelType {
+function pickHighestVersion(records: LayerRasterRecord[]): LayerRasterRecord {
   return records.reduce((best, candidate) => {
     const bestVersion = Number(best.productVersion);
     const candidateVersion = Number(candidate.productVersion);
@@ -60,7 +60,7 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
     this.requestExecutor = requestExecutor;
   }
 
-  public async resolveLayer(domain: Domain.RASTER, uniqueness: IResolvableRasterUniqueness): Promise<LayerRasterRecordModelType | null> {
+  public async resolveLayer(domain: Domain.RASTER, uniqueness: ResolvableRasterUniqueness): Promise<LayerRasterRecord | null> {
     const logContext = { domain, productId: uniqueness.productId, productType: uniqueness.productType };
 
     let cswClient: CswClient;
@@ -88,7 +88,7 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
       return null;
     }
 
-    let records: LayerRasterRecordModelType[];
+    let records: LayerRasterRecord[];
     try {
       records = rawMatches.map((raw) => mapPycswRecordToLayer(raw, PYCSW_KEYS));
     } catch (error) {

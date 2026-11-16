@@ -1,9 +1,10 @@
 import jsZip from 'jszip';
 import { describe, it, expect } from 'vitest';
-import { Domain, ProductType, SourceType } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { writeBasemapPackage } from '@src/basemaps/packaging/basemapPackageWriter';
 import { readBasemapPackage } from '@src/basemaps/packaging/basemapPackageReader';
-import type { IPortableBasemap } from '@src/basemaps/models/types';
+import type { PortableBasemap } from '@src/basemaps/models/types';
 
 const DIMENSION = 128;
 
@@ -20,7 +21,7 @@ function buildPngBuffer(): Buffer {
   return Buffer.concat([signature, chunkLength, chunkType, width, height, rest]);
 }
 
-function buildPortable(overrides: Partial<IPortableBasemap> = {}): IPortableBasemap {
+function buildPortable(overrides: Partial<PortableBasemap> = {}): PortableBasemap {
   return {
     name: 'Satellite Europe',
     isCurrent: true,

@@ -24,6 +24,15 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - name: Verify generated OpenAPI types are up to date
+        run: |
+          npm run generate:openapi-types
+          if ! git diff --quiet -- src/openapi.d.ts; then
+            echo "::error file=src/openapi.d.ts::src/openapi.d.ts is out of date with openapi3.yaml. Run 'npm run generate:openapi-types' locally and commit the updated src/openapi.d.ts."
+            git diff -- src/openapi.d.ts
+            exit 1
+          fi
+
       - name: Run TS Project linters
         uses: wearerequired/lint-action@v3
         with:

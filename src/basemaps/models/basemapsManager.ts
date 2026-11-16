@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { inject, injectable } from 'tsyringe';
 import type { Logger } from '@map-colonies/js-logger';
-import { SourceType } from '@map-colonies/types';
+import { SourceType } from '@map-colonies/app-shared';
 import { SERVICES } from '@common/constants';
 import { CorruptPersistedDataError, NotFoundError } from '@common/errors';
 import { CONFIG_SERVER_CLIENT, type IConfigServerClient, type IConfigServerDocument } from '@src/clients/configServer/configServerClient';
@@ -9,7 +9,7 @@ import { applyDefaultRoles, assertSingleOwnerPerRole } from './defaultRolePolicy
 import { validateBasemapWriteInput } from './basemapValidation';
 import { splitPersistedBasemaps } from './persistedBasemapValidation';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
-import { type IBasemap, type IBasemapLayerInput, type IBasemapLayerOutput, type IBasemapWriteInput, type IPersistedBasemap } from './types';
+import { type Basemap, type BasemapLayerInput, type BasemapLayerOutput, type BasemapWriteInput, type PersistedBasemap } from './types';
 
 @injectable()
 class BasemapsManager {
@@ -21,28 +21,28 @@ class BasemapsManager {
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {}
 
-  public async list(): Promise<IBasemap[]> {
+  public async list(): Promise<Basemap[]> {
     const basemaps = await this.listPersisted();
     const resolve = this.resolver.createScope();
     return Promise.all(basemaps.map(async (basemap) => this.toOutput(basemap, resolve)));
   }
 
-  public async listPersisted(): Promise<IPersistedBasemap[]> {
+  public async listPersisted(): Promise<PersistedBasemap[]> {
     const { document } = await this.configServerClient.getLatest();
     const { valid } = splitPersistedBasemaps(document.basemaps, this.logger);
     return valid;
   }
 
-  public async getById(id: string): Promise<IBasemap> {
+  public async getById(id: string): Promise<Basemap> {
     return this.toOutput(await this.getPersistedById(id));
   }
 
-  public async create(input: IBasemapWriteInput): Promise<IBasemap> {
+  public async create(input: BasemapWriteInput): Promise<Basemap> {
     validateBasemapWriteInput(input);
 
     const created = await this.mutate((basemaps) => {
       const id = randomUUID();
-      const persisted: IPersistedBasemap = {
+      const persisted: PersistedBasemap = {
         id,
         name: input.name,
         thumbnail: input.thumbnail,
@@ -57,7 +57,7 @@ class BasemapsManager {
     return this.toOutput(created);
   }
 
-  public async update(id: string, input: IBasemapWriteInput): Promise<IBasemap> {
+  public async update(id: string, input: BasemapWriteInput): Promise<Basemap> {
     validateBasemapWriteInput(input);
 
     const updated = await this.mutate((basemaps) => {
@@ -82,7 +82,7 @@ class BasemapsManager {
     });
   }
 
-  private async getPersistedById(id: string): Promise<IPersistedBasemap> {
+  private async getPersistedById(id: string): Promise<PersistedBasemap> {
     const { document } = await this.configServerClient.getLatest();
     const { valid, invalidIds } = splitPersistedBasemaps(document.basemaps, this.logger);
 
@@ -96,7 +96,7 @@ class BasemapsManager {
     throw new NotFoundError(`basemap "${id}" was not found`);
   }
 
-  private async toOutput(basemap: IPersistedBasemap, resolve: SourceResolver = this.resolver.createScope()): Promise<IBasemap> {
+  private async toOutput(basemap: PersistedBasemap, resolve: SourceResolver = this.resolver.createScope()): Promise<Basemap> {
     const layers = await Promise.all(basemap.layers.map(async (layer) => this.toOutputLayer(layer, resolve)));
     return {
       id: basemap.id,
@@ -108,12 +108,12 @@ class BasemapsManager {
     };
   }
 
-  private async toOutputLayer(layer: IBasemapLayerInput, resolve: SourceResolver): Promise<IBasemapLayerOutput> {
+  private async toOutputLayer(layer: BasemapLayerInput, resolve: SourceResolver): Promise<BasemapLayerOutput> {
     const source = await resolve(layer.source);
     return { id: layer.id, order: layer.order, opacity: layer.opacity, shouldBeUsedInModelDraping: layer.shouldBeUsedInModelDraping, source };
   }
 
-  private async mutate<T>(fn: (basemaps: IPersistedBasemap[]) => { next: IPersistedBasemap[]; result: T }): Promise<T> {
+  private async mutate<T>(fn: (basemaps: PersistedBasemap[]) => { next: PersistedBasemap[]; result: T }): Promise<T> {
     const run = async (): Promise<T> => {
       const { document, version } = await this.configServerClient.getLatest();
       const { valid, invalidRaw } = splitPersistedBasemaps(document.basemaps, this.logger);
@@ -132,8 +132,8 @@ class BasemapsManager {
   }
 }
 
-function toPersistedLayer({ id, order, opacity, shouldBeUsedInModelDraping, source }: IBasemapLayerInput): IBasemapLayerInput {
-  const persistedSource: IBasemapLayerInput['source'] =
+function toPersistedLayer({ id, order, opacity, shouldBeUsedInModelDraping, source }: BasemapLayerInput): BasemapLayerInput {
+  const persistedSource: BasemapLayerInput['source'] =
     source.type === SourceType.CATALOG_RESOURCE
       ? {
           type: source.type,
@@ -144,7 +144,7 @@ function toPersistedLayer({ id, order, opacity, shouldBeUsedInModelDraping, sour
   return { id, order, opacity, shouldBeUsedInModelDraping, source: persistedSource };
 }
 
-function getOrThrow(basemaps: IPersistedBasemap[], id: string): IPersistedBasemap {
+function getOrThrow(basemaps: PersistedBasemap[], id: string): PersistedBasemap {
   const basemap = basemaps.find((candidate) => candidate.id === id);
   /* istanbul ignore next -- defensive: `id` was just inserted/confirmed present by the caller */
   if (!basemap) {

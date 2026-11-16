@@ -45,7 +45,7 @@ describe('HttpRasterCatalogClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('resolves a matching raster catalog record, mapped to LayerRasterRecordModelType', async () => {
+  it('resolves a matching raster catalog record, mapped to LayerRasterRecord', async () => {
     stubFetch(searchResultsXml(rasterRecordXml({})));
     const client = new HttpRasterCatalogClient(envWith('http://pycsw'), await jsLogger({ enabled: false }));
 
