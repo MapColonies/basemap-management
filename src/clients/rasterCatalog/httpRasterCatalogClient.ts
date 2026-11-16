@@ -90,7 +90,7 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
 
     let records: LayerRasterRecord[];
     try {
-      records = transformRecordsToEntity<LayerRasterRecordModelType>(rawMatches, PYCSW_KEYS, mcCswFieldRules);
+      records = transformRecordsToEntity<LayerRasterRecord>(rawMatches, PYCSW_KEYS, mcCswFieldRules);
     } catch (error) {
       this.logger.error({ msg: 'failed to map raster catalog record from PyCSW - returned as unresolved', err: String(error), ...logContext });
       return null;
