@@ -1,13 +1,13 @@
 import { inject, injectable } from 'tsyringe';
 import { z } from 'zod';
 import type { Logger } from '@map-colonies/js-logger';
-import { OGC_ImageryProtocolType, ProductType } from '@map-colonies/types';
+import { ProductType } from '@map-colonies/types';
 import { SourceType } from '@map-colonies/app-shared';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { SERVICES } from '@common/constants';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import type { LayerRasterRecord } from './catalogTypes';
+import { ImageryProtocolType, type LayerRasterRecord } from './catalogTypes';
 import {
   Status,
   type BasemapLayerSourceInput,
@@ -17,7 +17,7 @@ import {
   type ResolvableRasterUniqueness,
 } from './types';
 
-const WMTS_PROTOCOL = OGC_ImageryProtocolType.WMTS;
+const WMTS_PROTOCOL = ImageryProtocolType.WMTS;
 const wmtsLinkSchema = z.object({ protocol: z.literal(WMTS_PROTOCOL), name: z.string() }).passthrough();
 const RASTER_PRODUCT_TYPES = new Set<string>([
   ProductType.ORTHOPHOTO,
