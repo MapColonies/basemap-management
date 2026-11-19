@@ -16,9 +16,6 @@ interface IBasemapManagementEnv {
     configName: string;
     schemaId: string;
   };
-  dataService: {
-    url: string;
-  };
   rasterCatalog: {
     url: string;
   };
@@ -26,9 +23,9 @@ interface IBasemapManagementEnv {
     url: string;
   };
   uploadLimits: {
-    thumbnailMaxSizeBytes: number;
     importPackageMaxSizeBytes: number;
   };
+  mockData: boolean;
 }
 
 const DEFAULT_CONFIG_MANAGEMENT_URL = 'http://localhost:8080';
@@ -36,7 +33,6 @@ const DEFAULT_CONFIG_BASEMAPS_NAME = 'basemaps';
 const DEFAULT_CONFIG_BASEMAPS_SCHEMA_ID = 'https://mapcolonies.com/basemaps/v1';
 const BYTES_PER_KILOBYTE = 1024;
 const BYTES_PER_MEGABYTE = BYTES_PER_KILOBYTE * BYTES_PER_KILOBYTE;
-const DEFAULT_THUMBNAIL_MAX_SIZE_MEGABYTES = 2;
 const DEFAULT_IMPORT_PACKAGE_MAX_SIZE_MEGABYTES = 10;
 
 function parseByteSize(value: string | undefined, defaultBytes: number): number {
@@ -50,15 +46,22 @@ function parseByteSize(value: string | undefined, defaultBytes: number): number 
   return parsed;
 }
 
+function parseStrictBoolean(name: string, value: string | undefined): boolean {
+  if (value === undefined || value === 'false') {
+    return false;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  throw new Error(`invalid ${name} environment value "${value}" - expected "true" or "false"`);
+}
+
 function getBasemapManagementEnv(): IBasemapManagementEnv {
   return {
     configServer: {
       url: process.env.CONFIG_MANAGEMENT_URL ?? DEFAULT_CONFIG_MANAGEMENT_URL,
       configName: process.env.CONFIG_BASEMAPS_NAME ?? DEFAULT_CONFIG_BASEMAPS_NAME,
       schemaId: process.env.CONFIG_BASEMAPS_SCHEMA_ID ?? DEFAULT_CONFIG_BASEMAPS_SCHEMA_ID,
-    },
-    dataService: {
-      url: process.env.DATA_SERVICE_URL ?? '',
     },
     rasterCatalog: {
       url: process.env.RASTER_CATALOG_URL ?? '',
@@ -67,12 +70,12 @@ function getBasemapManagementEnv(): IBasemapManagementEnv {
       url: process.env.MAP_SERVER_URL ?? '',
     },
     uploadLimits: {
-      thumbnailMaxSizeBytes: parseByteSize(process.env.THUMBNAIL_MAX_SIZE_BYTES, DEFAULT_THUMBNAIL_MAX_SIZE_MEGABYTES * BYTES_PER_MEGABYTE),
       importPackageMaxSizeBytes: parseByteSize(
         process.env.IMPORT_PACKAGE_MAX_SIZE_BYTES,
         DEFAULT_IMPORT_PACKAGE_MAX_SIZE_MEGABYTES * BYTES_PER_MEGABYTE
       ),
     },
+    mockData: parseStrictBoolean('BASEMAP_MOCK_DATA', process.env.BASEMAP_MOCK_DATA),
   };
 }
 

@@ -1,9 +1,10 @@
 import { jsLogger, type Logger } from '@map-colonies/js-logger';
-import { describe, beforeEach, it, expect, vi } from 'vitest';
+import { describe, beforeEach, it, expect, vi, type MockInstance } from 'vitest';
 import { Domain, ProductType } from '@map-colonies/types';
 import { SourceType } from '@map-colonies/app-shared';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
-import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
+import type { IConfigServerClient } from '@src/clients/configServer/configServerClient';
+import { InMemoryConfigServerClient } from '@src/clients/configServer/inMemoryConfigServerClient';
 import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceResolver';
 import { type Basemap, type BasemapLayerInput, type BasemapWriteInput, type PersistedBasemap } from '@src/basemaps/models/types';
 
@@ -19,29 +20,6 @@ async function noopResolver(): Promise<CatalogResourceResolver> {
   );
 }
 
-class FakeConfigServerClient implements IConfigServerClient {
-  public version = 0;
-  public document: IConfigServerDocument = { basemaps: [] };
-  public saveCallCount = 0;
-
-  // eslint-disable-next-line @typescript-eslint/require-await
-  public async getLatest(): Promise<{ document: IConfigServerDocument; version: number | undefined }> {
-    return { document: this.document, version: this.version === 0 ? undefined : this.version };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await
-  public async save(document: IConfigServerDocument, baseVersion: number | undefined): Promise<{ version: number }> {
-    const expectedBaseVersion = this.version === 0 ? undefined : this.version;
-    if (baseVersion !== expectedBaseVersion) {
-      throw new Error(`stale write: expected baseVersion ${String(expectedBaseVersion)}, got ${String(baseVersion)}`);
-    }
-    this.document = document;
-    this.version += 1;
-    this.saveCallCount += 1;
-    return { version: this.version };
-  }
-}
-
 function writeInput(overrides: Partial<BasemapWriteInput> = {}): BasemapWriteInput {
   return {
     name: 'Satellite Europe',
@@ -54,11 +32,13 @@ function writeInput(overrides: Partial<BasemapWriteInput> = {}): BasemapWriteInp
 }
 
 describe('BasemapsManager', () => {
-  let configServerClient: FakeConfigServerClient;
+  let configServerClient: InMemoryConfigServerClient;
+  let saveSpy: MockInstance<IConfigServerClient['save']>;
   let manager: BasemapsManager;
 
   beforeEach(async () => {
-    configServerClient = new FakeConfigServerClient();
+    configServerClient = new InMemoryConfigServerClient();
+    saveSpy = vi.spyOn(configServerClient, 'save');
     manager = new BasemapsManager(configServerClient, await noopResolver(), await jsLogger({ enabled: false }));
   });
 
@@ -69,12 +49,12 @@ describe('BasemapsManager', () => {
       expect(created.id.length).toBeGreaterThan(0);
       expect(created.name).toBe('Satellite Europe');
       expect(configServerClient.document.basemaps).toHaveLength(1);
-      expect(configServerClient.saveCallCount).toBe(1);
+      expect(saveSpy).toHaveBeenCalledTimes(1);
     });
 
     it('rejects an invalid input without ever calling save', async () => {
       await expect(manager.create(writeInput({ name: '' }))).rejects.toThrow(/name/);
-      expect(configServerClient.saveCallCount).toBe(0);
+      expect(saveSpy).not.toHaveBeenCalled();
     });
 
     it('claiming isCurrent on a new basemap clears it from the previous owner', async () => {
@@ -115,7 +95,7 @@ describe('BasemapsManager', () => {
     it('stores only the input contract on create - read-only fields are dropped, external details are kept whole', async () => {
       await manager.create(writeInput({ layers: [layerFromRead, external] }));
 
-      const [stored] = configServerClient.document.basemaps;
+      const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
 
       expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }, { ...external }]);
     });
@@ -125,7 +105,7 @@ describe('BasemapsManager', () => {
 
       await manager.update(created.id, writeInput({ layers: [layerFromRead] }));
 
-      const [stored] = configServerClient.document.basemaps;
+      const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
 
       expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }]);
     });

@@ -10,7 +10,6 @@ const basemapsRouterFactory: FactoryFunction<Router> = (dependencyContainer) => 
 
   router.get('/', basemapsController.listBasemaps);
   router.post('/', basemapsController.createBasemap);
-  router.post('/thumbnails', basemapsController.uploadBasemapThumbnail);
   router.post('/import/validate', importExportController.validateBasemapImport);
   router.get('/:basemapId', basemapsController.getBasemap);
   router.put('/:basemapId', basemapsController.updateBasemap);

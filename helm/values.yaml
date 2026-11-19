@@ -149,9 +149,6 @@ basemapManagement:
     # Not yet registered anywhere config-server schemas are maintained - see README "Unresolved
     # external contracts". Do not invent a different id once registration happens; update this value.
     schemaId: 'https://mapcolonies.com/basemaps/v1'
-  # Placeholder: the future binary-persistence data-service (A.12) does not exist yet.
-  dataService:
-    url: ''
   rasterCatalog:
     # Raster PyCSW base URL, queried via @map-colonies/csw-client. If empty or unreachable, catalog
     # layers come back with status: 'UNRESOLVED'.
@@ -161,5 +158,4 @@ basemapManagement:
     # when unreachable, catalog layers come back with status: 'UNRESOLVED'.
     url: ''
   uploadLimits:
-    thumbnailMaxSizeBytes: 2097152 # 2MB - a 128x128 PNG/WebP comes nowhere close to this
     importPackageMaxSizeBytes: 10485760 # 10MB - generous for a tiny JSON doc + one 128x128 image

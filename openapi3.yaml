@@ -31,8 +31,9 @@ paths:
       tags:
         - basemaps
       summary: >-
-        Create a new Basemap. The thumbnail must already have been uploaded via
-        POST /basemaps/thumbnails.
+        Create a new Basemap. The thumbnail must be a ready URL - uploading the
+        image itself is handled by catalog-web-app-bff (via data-service), not
+        by this service.
       requestBody:
         required: true
         content:
@@ -46,39 +47,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/basemap'
-        '400':
-          $ref: '#/components/responses/badRequest'
-  /basemaps/thumbnails:
-    post:
-      operationId: uploadBasemapThumbnail
-      tags:
-        - basemaps
-      summary: >
-        Upload a single 128x128 thumbnail image and return its persisted URL.
-        This endpoint is intentionally decoupled from any Basemap id: it must
-        work before a new Basemap has been created, as well as when replacing
-        the thumbnail of an existing one. The physical storage key is generated
-        by this service; the client never chooses it.
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - thumbnail
-              properties:
-                thumbnail:
-                  type: string
-                  format: binary
-                  description: A single PNG or WebP image, exactly 128x128 pixels.
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/basemapThumbnail'
         '400':
           $ref: '#/components/responses/badRequest'
   /basemaps/import/validate:
@@ -219,8 +187,9 @@ components:
     basemapThumbnail:
       type: object
       description: >-
-        A persisted thumbnail reference. The binary image itself lives in blob
-        storage; only its URL is part of the Basemap configuration.
+        A persisted thumbnail reference. The binary image itself lives in
+        data-service (uploaded via catalog-web-app-bff); only its URL is part
+        of the Basemap configuration.
       required:
         - url
         - width
