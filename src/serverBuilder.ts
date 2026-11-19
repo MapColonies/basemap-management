@@ -65,7 +65,7 @@ export class ServerBuilder {
     const ignorePathRegex = new RegExp(`^${this.config.get('openapiConfig.basePath')}/.*`, 'i');
     const apiSpecPath = this.config.get('openapiConfig.filePath');
     const { uploadLimits } = this.basemapManagementEnv;
-    const multipartSizeLimitBytes = Math.max(uploadLimits.thumbnailMaxSizeBytes, uploadLimits.importPackageMaxSizeBytes);
+    const multipartSizeLimitBytes = uploadLimits.importPackageMaxSizeBytes;
 
     this.serverInstance.use(
       OpenApiMiddleware({

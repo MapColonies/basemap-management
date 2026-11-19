@@ -8,10 +8,10 @@ import type { IBasemapManagementEnv } from '@src/common/env';
 function envWith(url: string): IBasemapManagementEnv {
   return {
     configServer: { url: '', configName: 'basemaps', schemaId: 's' },
-    dataService: { url: '' },
     rasterCatalog: { url: '' },
     mapServer: { url },
-    uploadLimits: { thumbnailMaxSizeBytes: 1, importPackageMaxSizeBytes: 1 },
+    uploadLimits: { importPackageMaxSizeBytes: 1 },
+    mockData: false,
   };
 }
 
