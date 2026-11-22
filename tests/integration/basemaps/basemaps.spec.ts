@@ -11,12 +11,12 @@ import type { CapabilityWMTS } from '@map-colonies/wmts-client';
 import { Domain, ProductType } from '@map-colonies/types';
 import { SourceType } from '@map-colonies/app-shared';
 import type { paths, operations } from '@openapi';
-import { Status } from '@src/basemaps/models/types';
+import { Status, type PersistedBasemap } from '@src/basemaps/models/types';
 import { getApp } from '@src/app';
 import { SERVICES } from '@common/constants';
 import { initConfig } from '@src/common/config';
-import { CONFIG_SERVER_CLIENT, type IConfigServerClient, type IConfigServerDocument } from '@src/clients/configServer/configServerClient';
-import { BLOB_STORAGE_CLIENT, type IBlobStorageClient, type IUploadBlobParams } from '@src/clients/blobStorage/blobStorageClient';
+import { CONFIG_SERVER_CLIENT } from '@src/clients/configServer/configServerClient';
+import { InMemoryConfigServerClient } from '@src/clients/configServer/inMemoryConfigServerClient';
 import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
@@ -26,6 +26,8 @@ const KNOWN_PRODUCT_ID = '12345';
 const WMTS_LINK_NAME = '12345-Orthophoto';
 const RESOLVED_LAYER: LayerRasterRecord = {
   id: 'record-1',
+  productId: KNOWN_PRODUCT_ID,
+  productType: ProductType.ORTHOPHOTO,
   productName: 'France Satellite',
   links: [{ protocol: 'WMTS', name: WMTS_LINK_NAME, url: 'https://mapproxy/wmts' }],
 };
@@ -37,54 +39,10 @@ const CAPABILITY: CapabilityWMTS = {
   url: [{ format: 'image/jpeg', resourceType: 'tile', template: 'https://mapproxy/wmts/{TileMatrix}/{TileCol}/{TileRow}.jpeg' }],
 };
 
-/** supertest/superagent does not buffer unrecognized content types (like application/zip) into `response.body` by default. */
 function binaryParser(res: SuperagentResponse, callback: (err: Error | null, body: Buffer) => void): void {
   const chunks: Buffer[] = [];
   res.on('data', (chunk: Buffer) => chunks.push(chunk));
   res.on('end', () => callback(null, Buffer.concat(chunks)));
-}
-
-class FakeConfigServerClient implements IConfigServerClient {
-  public document: IConfigServerDocument = { basemaps: [] };
-  public version: number | undefined = undefined;
-
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async getLatest(): Promise<{ document: IConfigServerDocument; version: number | undefined }> {
-    return { document: this.document, version: this.version };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async save(document: IConfigServerDocument, baseVersion: number | undefined): Promise<{ version: number }> {
-    if (baseVersion !== this.version) {
-      throw new Error('stale write');
-    }
-    this.document = document;
-    this.version = (this.version ?? 0) + 1;
-    return { version: this.version };
-  }
-}
-
-class FakeBlobStorageClient implements IBlobStorageClient {
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async upload(params: IUploadBlobParams): Promise<{ url: string }> {
-    return { url: `data:${params.contentType};base64,${params.body.toString('base64')}` };
-  }
-}
-
-class FakeRasterCatalogClient implements IRasterCatalogClient {
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async resolveLayer(_domain: Domain.RASTER, uniqueness: { productId: string }): Promise<LayerRasterRecord | null> {
-    return uniqueness.productId === KNOWN_PRODUCT_ID ? RESOLVED_LAYER : null;
-  }
-}
-
-class FakeMapServerCapabilitiesClient implements IMapServerCapabilitiesClient {
-  public capabilities: CapabilityWMTS[] = [CAPABILITY];
-
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async getCapabilities(): Promise<CapabilityWMTS[]> {
-    return this.capabilities;
-  }
 }
 
 function buildPngBuffer(): Buffer {
@@ -102,23 +60,29 @@ function buildPngBuffer(): Buffer {
 describe('basemaps', () => {
   let app: Application;
   let requestSender: RequestSender<paths, operations>;
-  let configServerClient: FakeConfigServerClient;
-  let mapServerClient: FakeMapServerCapabilitiesClient;
+  let configServerClient: InMemoryConfigServerClient;
+  const rasterCatalogClient: IRasterCatalogClient = {
+    resolveLayer: async (_domain, { productId, productType }) =>
+      Promise.resolve(RESOLVED_LAYER.productId === productId && RESOLVED_LAYER.productType === productType ? RESOLVED_LAYER : null),
+  };
+  let mapServerCapabilities: CapabilityWMTS[];
+  const mapServerClient: IMapServerCapabilitiesClient = {
+    getCapabilities: async () => Promise.resolve(mapServerCapabilities),
+  };
 
   beforeAll(async () => {
     await initConfig(true);
   });
 
   beforeEach(async () => {
-    configServerClient = new FakeConfigServerClient();
-    mapServerClient = new FakeMapServerCapabilitiesClient();
+    configServerClient = new InMemoryConfigServerClient();
+    mapServerCapabilities = [CAPABILITY];
     [app] = await getApp({
       override: [
         { token: SERVICES.LOGGER, provider: { useValue: await jsLogger({ enabled: false }) } },
         { token: SERVICES.TRACER, provider: { useValue: trace.getTracer('testTracer') } },
         { token: CONFIG_SERVER_CLIENT, provider: { useValue: configServerClient } },
-        { token: BLOB_STORAGE_CLIENT, provider: { useValue: new FakeBlobStorageClient() } },
-        { token: RASTER_CATALOG_CLIENT, provider: { useValue: new FakeRasterCatalogClient() } },
+        { token: RASTER_CATALOG_CLIENT, provider: { useValue: rasterCatalogClient } },
         { token: MAP_SERVER_CAPABILITIES_CLIENT, provider: { useValue: mapServerClient } },
       ],
       useChild: true,
@@ -126,69 +90,24 @@ describe('basemaps', () => {
     requestSender = await createRequestSender<paths, operations>('openapi3.yaml', app);
   });
 
-  async function uploadThumbnail(): Promise<{ url: string; width: 128; height: 128 }> {
-    const response = await request(app)
-      .post('/basemaps/thumbnails')
-      .attach('thumbnail', buildPngBuffer(), { filename: 'thumb.png', contentType: 'image/png' });
-
-    expect(response.status).toBe(httpStatusCodes.CREATED);
-
-    return response.body as { url: string; width: 128; height: 128 };
+  function readyThumbnail(): { url: string; width: 128; height: 128 } {
+    return { url: `data:image/png;base64,${buildPngBuffer().toString('base64')}`, width: DIMENSION, height: DIMENSION };
   }
 
-  describe('thumbnail upload', () => {
-    it('accepts a valid 128x128 PNG and returns a server-generated URL', async () => {
+  describe('removed thumbnail upload endpoint', () => {
+    it('no longer exposes POST /basemaps/thumbnails', async () => {
       const response = await request(app)
         .post('/basemaps/thumbnails')
         .attach('thumbnail', buildPngBuffer(), { filename: 'thumb.png', contentType: 'image/png' });
 
-      expect(response.status).toBe(httpStatusCodes.CREATED);
-      expect(response.body).toMatchObject({ width: DIMENSION, height: DIMENSION });
-
-      const body = response.body as { url: string };
-
-      expect(body.url).not.toContain('thumb.png'); // the client-supplied filename must never leak into the storage key
-    });
-
-    it('rejects a MIME type claiming image/png when the bytes are not actually a PNG', async () => {
-      const response = await request(app)
-        .post('/basemaps/thumbnails')
-        .attach('thumbnail', Buffer.from('not a real png'), { filename: 'thumb.png', contentType: 'image/png' });
-
-      expect(response.status).toBe(httpStatusCodes.BAD_REQUEST);
-    });
-
-    it('rejects a real PNG with the wrong dimensions', async () => {
-      const wrongSize = 64;
-      const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-      const chunkLength = Buffer.alloc(4);
-      chunkLength.writeUInt32BE(13);
-      const width = Buffer.alloc(4);
-      width.writeUInt32BE(wrongSize);
-      const height = Buffer.alloc(4);
-      height.writeUInt32BE(wrongSize);
-      const badPng = Buffer.concat([signature, chunkLength, Buffer.from('IHDR', 'ascii'), width, height, Buffer.alloc(9)]);
-
-      const response = await request(app)
-        .post('/basemaps/thumbnails')
-        .attach('thumbnail', badPng, { filename: 'thumb.png', contentType: 'image/png' });
-
-      expect(response.status).toBe(httpStatusCodes.BAD_REQUEST);
-    });
-
-    it('rejects an oversized upload', async () => {
-      const oversized = Buffer.alloc(3 * 1024 * 1024);
-      const response = await request(app)
-        .post('/basemaps/thumbnails')
-        .attach('thumbnail', oversized, { filename: 'thumb.png', contentType: 'image/png' });
-
+      expect(response.status).not.toBe(httpStatusCodes.CREATED);
       expect(response.status).toBeGreaterThanOrEqual(httpStatusCodes.BAD_REQUEST);
     });
   });
 
   describe('CRUD', () => {
     it('creates, lists, gets, updates, and deletes a basemap', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
 
       const createResponse = await requestSender.createBasemap({
         requestBody: { name: 'Satellite Europe', thumbnail, isCurrent: false, isForPreview: false, layers: [] },
@@ -227,7 +146,7 @@ describe('basemaps', () => {
     });
 
     it('rejects an invalid opacity with 400', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
 
       const response = await requestSender.createBasemap({
         requestBody: {
@@ -256,7 +175,7 @@ describe('basemaps', () => {
     });
 
     it('returns 404 when updating an unknown basemap id', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
       const response = await requestSender.updateBasemap({
         pathParams: { basemapId: 'does-not-exist' },
         requestBody: { name: 'x', thumbnail, isCurrent: false, isForPreview: false, layers: [] },
@@ -272,7 +191,7 @@ describe('basemaps', () => {
     });
 
     it('setting isCurrent on a new basemap clears it from the previous owner', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
       const first = await requestSender.createBasemap({
         requestBody: { name: 'First', thumbnail, isCurrent: true, isForPreview: false, layers: [] },
       });
@@ -296,7 +215,7 @@ describe('basemaps', () => {
 
   describe('export / import', () => {
     async function createBasemapWithRasterLayer(): Promise<string> {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
       const createResponse = await requestSender.createBasemap({
         requestBody: {
           name: 'Satellite Europe',
@@ -368,7 +287,7 @@ describe('basemaps', () => {
         .send({ ...read, id: undefined });
 
       expect(response.status).toBe(httpStatusCodes.OK);
-      expect(configServerClient.document.basemaps[0]?.layers[0]?.source).toEqual({
+      expect((configServerClient.document.basemaps as PersistedBasemap[])[0]?.layers[0]?.source).toEqual({
         type: SourceType.CATALOG_RESOURCE,
         domain: Domain.RASTER,
         uniqueness: { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO },
@@ -376,7 +295,7 @@ describe('basemaps', () => {
     });
 
     it('returns an external layer as RESOLVED with its details unchanged on GET', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
       const details = { protocol: 'WMTS' as const, name: 'osm', url: 'https://example.com/wmts', layer: 'ortho' };
       const createResponse = await requestSender.createBasemap({
         requestBody: {
@@ -399,7 +318,7 @@ describe('basemaps', () => {
     });
 
     it('accepts a catalog layer with an incomplete uniqueness and returns it as UNRESOLVED on GET', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
       const uniqueness = { productId: null, productType: ProductType.ORTHOPHOTO };
       const createResponse = await request(app)
         .post('/basemaps')
@@ -427,7 +346,7 @@ describe('basemaps', () => {
     });
 
     it('still rejects a catalog layer whose uniqueness values have the wrong JSON type with 400', async () => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
 
       const response = await request(app)
         .post('/basemaps')
@@ -444,7 +363,7 @@ describe('basemaps', () => {
 
     it('returns the layer as UNRESOLVED with null layer/capabilities when MapProxy has no matching capability', async () => {
       const basemapId = await createBasemapWithRasterLayer();
-      mapServerClient.capabilities = [];
+      mapServerCapabilities = [];
 
       const response = await requestSender.getBasemap({ pathParams: { basemapId } });
 
@@ -474,7 +393,7 @@ describe('basemaps', () => {
       ['the legacy RASTER_RESOURCE shape', { type: 'RASTER_RESOURCE', productId: 'p', productType: 'Orthophoto' }],
       ['an unsupported domain', { type: 'CATALOG_RESOURCE', domain: 'VECTOR', uniqueness: { productId: 'p', productType: 'Orthophoto' } }],
     ])('rejects a write whose layer source is %s with 400', async (_label, source) => {
-      const thumbnail = await uploadThumbnail();
+      const thumbnail = readyThumbnail();
 
       const response = await request(app)
         .post('/basemaps')

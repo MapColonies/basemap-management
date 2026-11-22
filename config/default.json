@@ -33,10 +33,25 @@
       }
     }
   },
+  "configServer": {
+    "url": "http://config-server",
+    "configName": "basemaps",
+    "schemaId": "https://mapcolonies.com/basemaps/v1"
+  },
   "rasterCatalog": {
-    "url": "https://raster-serving-pycsw-private-nginx-route-manual-integration.apps.j1lk3njp.eastus.aroapp.io/api/raster/v1"
+    "url": "http://raster-catalog",
+    "exposureType": "ROUTE"
   },
   "mapServer": {
-    "url": "https://raster-serving-int-mapproxy-nginx-route-manual-integration.apps.j1lk3njp.eastus.aroapp.io/api/raster/v1"
+    "url": "http://mapproxy",
+    "exposureType": "ROUTE"
+  },
+  "accessToken": {
+    "attributeName": "token",
+    "injectionType": "queryParam",
+    "tokenValue": ""
+  },
+  "uploadLimits": {
+    "importPackageMaxSizeBytes": 10485760
   }
 }

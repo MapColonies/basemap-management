@@ -21,7 +21,8 @@ flowchart LR
   svc -->|read / write basemaps document| cs[(config-server)]
   svc -->|resolve catalog record| rc[Raster PyCSW]
   svc -->|WMTSCapabilities.xml| ms[MapProxy / map server]
-  svc -.->|thumbnail upload| bs[Blob storage<br/><i>stub</i>]
+  bff[catalog-web-app-bff] -.->|thumbnail upload| ds[data-service]
+  bff -->|basemap CRUD with ready thumbnail URL| svc
 ```
 
 Three concerns are kept separate:
@@ -35,19 +36,19 @@ Three concerns are kept separate:
 | config-server | `HttpConfigServerClient` | Implemented. `GET/POST {CONFIG_MANAGEMENT_URL}/api/config`. |
 | Map server (Raster MapProxy) | `HttpMapServerCapabilitiesClient` | Implemented. Fetches `{MAP_SERVER_URL}/wmts/1.0.0/WMTSCapabilities.xml` once per request. |
 | Raster Catalog | `HttpRasterCatalogClient` | Implemented. Queries Raster PyCSW via `@map-colonies/csw-client`, filtering on `mc:productId` + `mc:productType`, mapping the result with `@map-colonies/mc-model-types`' `PycswLayerCatalogRecord.getPyCSWMappings()`. If `RASTER_CATALOG_URL` is empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
-| Blob storage / data-service | `StubBlobStorageClient` | **Stub only.** Keeps thumbnails in process memory and returns `memory://` URLs. `DATA_SERVICE_URL` is read but unused. |
+| Thumbnail storage | - | **Not this service's job.** Thumbnail images are uploaded by `catalog-web-app-bff` to data-service; this service only stores and returns the ready `thumbnail.url`. The one exception is `/basemaps/import/validate`, which still extracts the thumbnail binary from the ZIP and returns it base64-encoded. |
 
 Source layout:
 
 ```
 src/
   basemaps/
-    controllers/   HTTP handlers (CRUD + thumbnail, import/export)
+    controllers/   HTTP handlers (CRUD, import/export)
     routes/        Express router mounted at /basemaps
     models/        manager, catalog resolver, validation, default-role policy, types
     packaging/     export/import ZIP reader and writer
-    thumbnails/    PNG/WebP header sniffing
-  clients/         configServer, mapServer, rasterCatalog, blobStorage
+    thumbnails/    PNG/WebP header sniffing (used by the import ZIP reader)
+  clients/         configServer, mapServer, rasterCatalog
   common/          config, env, errors, tracing, multipart helper
 openapi3.yaml      API contract (also used for request validation)
 config/            node-config defaults
@@ -78,12 +79,10 @@ npm install
 `start:dev` builds the project, enables `@map-colonies/config` offline mode and source maps, and starts the server on port 8080:
 
 ```bash
-CONFIG_MANAGEMENT_URL=http://localhost:8080 \
-MAP_SERVER_URL=http://localhost:8081 \
 npm run start:dev
 ```
 
-Replace the URLs with your config-server and MapProxy. `CONFIG_MANAGEMENT_URL` defaults to `http://localhost:8080`, which is also this service's own port, so point it elsewhere or change `SERVER_PORT`.
+Service settings (MapProxy, Raster Catalog, config-server, access token) are read from `config/default.json`, so edit them there - or, for anything you don't want tracked (e.g. a MapProxy token), in a git-ignored `config/local-development.json` (see [Configuration](#configuration)). Environment variables still override both. `CONFIG_MANAGEMENT_URL` defaults to `http://localhost:8080`, which is also this service's own port, so point it elsewhere or change `SERVER_PORT`.
 
 Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/api.json`).
 
@@ -109,22 +108,43 @@ Commits follow Conventional Commits (enforced by commitlint). Releases are manag
 
 Settings come from two places.
 
-### 1. Service settings (environment variables)
+### 1. Service settings (`config/*.json` + environment overrides)
 
-Read directly from `process.env` in [src/common/env.ts](src/common/env.ts). Invalid values fail startup.
+Read in [src/common/env.ts](src/common/env.ts) from the `@map-colonies/config` instance and validated with zod; invalid values fail startup with the offending paths (values, including the token, are never echoed). `@map-colonies/config` loads the local files through node-config, so the layering is the same as in `catalog-web-app-bff`:
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
-| `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
-| `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
-| `MAP_SERVER_URL` | `''` | Raster MapProxy base URL (maps to `mapServer.url` in the env object). `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present. If empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
-| `RASTER_CATALOG_URL` | `''` | Raster PyCSW base URL. If empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
-| `DATA_SERVICE_URL` | `''` | Placeholder, unused. Thumbnails go to the in-memory stub. |
-| `THUMBNAIL_MAX_SIZE_BYTES` | `2097152` (2 MiB) | Max thumbnail upload size. |
-| `IMPORT_PACKAGE_MAX_SIZE_BYTES` | `10485760` (10 MiB) | Max import package upload size. |
+1. `config/default.json` - local-development defaults (integration MapProxy / PyCSW URLs, no token).
+2. `config/{NODE_ENV}.json` - `production.json` (the Docker image sets `NODE_ENV=production`) and `test.json` reset the MapProxy / PyCSW URLs to `''`, so a deployment that leaves them unset behaves as before (catalog layers `UNRESOLVED`) instead of silently using integration services.
+3. `config/local.json` / `config/local-{NODE_ENV}.json` - **git-ignored** (and excluded from the Docker build context) personal overrides; put a MapProxy token here, e.g. `config/local-development.json` for `npm run start:dev`.
+4. Environment variables, mapped in `config/custom-environment-variables.json` (names below; unchanged for Helm, plus the BFF's `ACCESS_TOKEN_*`). An **empty** variable does not override (node-config semantics).
 
-The multipart parser limit is the larger of the two size limits. The import ZIP reader separately caps the archive at 10 entries and 10 MiB uncompressed.
+`CONFIG_OFFLINE_MODE` only decides whether the boilerplate settings are also fetched from a remote config server; the local files and env overrides above apply in both modes.
+
+| Config path | Variable | Default (`default.json`) | Description |
+| --- | --- | --- | --- |
+| `configServer.url` | `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
+| `configServer.configName` | `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
+| `configServer.schemaId` | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
+| `mapServer.url` | `MAP_SERVER_URL` | integration MapProxy (`''` in production/test) | Raster MapProxy base URL. `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present; an existing query string is kept. If empty or unreachable, catalog layers come back `UNRESOLVED`. |
+| `mapServer.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `mapServices.raster.exposureType`. The token is only sent to a `ROUTE`. |
+| `rasterCatalog.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `csw.raster.exposureType`. The token is only sent to a `ROUTE`. |
+| `accessToken.attributeName` | `ACCESS_TOKEN_ATTRIBUTE_NAME` | `token` | Same as the BFF. |
+| `accessToken.injectionType` | `ACCESS_TOKEN_INJECTION_TYPE` | `queryParam` | `queryParam` or `header` (case-insensitive), same as the BFF. As in the BFF, PyCSW requests support both; WMTS capabilities requests support only `queryParam` (`header` logs a warning and sends no token to MapProxy). |
+| `accessToken.tokenValue` | `ACCESS_TOKEN_TOKEN_VALUE` | `''` | MapProxy token. Empty = unauthenticated requests. Never commit it; it is redacted from MapProxy and PyCSW client logs and errors. |
+| `rasterCatalog.url` | `RASTER_CATALOG_URL` | integration PyCSW (`''` in production/test) | Raster PyCSW base URL. If empty or unreachable, catalog layers come back `UNRESOLVED`. |
+| `uploadLimits.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | `10485760` (10 MiB) | Max import package upload size. |
+| - | `BASEMAP_MOCK_DATA` | unset (off) | **Raw environment variable only (not a config file key). Development/demo only. Never enable in production.** `true` turns on [mock mode](#mock-mode). Only the exact values `true` and `false` are accepted; any other value fails startup. Deliberately not exposed in the Helm chart. Unrelated to `CONFIG_OFFLINE_MODE`. |
+
+Example git-ignored `config/local-development.json`:
+
+```json
+{
+  "rasterCatalog": { "url": "https://<pycsw-route>/api/raster/v1", "exposureType": "ROUTE" },
+  "mapServer": { "url": "https://<mapproxy-route>/api/raster/v1", "exposureType": "ROUTE" },
+  "accessToken": { "attributeName": "token", "injectionType": "queryParam", "tokenValue": "<YOUR_MAPPROXY_TOKEN>" }
+}
+```
+
+The multipart parser limit is `IMPORT_PACKAGE_MAX_SIZE_BYTES` (import is the only multipart route). The import ZIP reader separately caps the archive at 10 entries and 10 MiB uncompressed.
 
 ### 2. Boilerplate settings (`@map-colonies/config`)
 
@@ -155,7 +175,6 @@ Full contract: [openapi3.yaml](openapi3.yaml), served at `/docs/api/`. All route
 | `GET` | `/basemaps/{basemapId}` | Get one Basemap | `200` |
 | `PUT` | `/basemaps/{basemapId}` | Fully replace a Basemap | `200` |
 | `DELETE` | `/basemaps/{basemapId}` | Delete a Basemap | `204` |
-| `POST` | `/basemaps/thumbnails` | Upload a 128x128 PNG/WebP (`multipart/form-data`, field `thumbnail`) | `201` |
 | `GET` | `/basemaps/{basemapId}/export` | Download a portable ZIP (`basemap.json` + thumbnail) | `200` |
 | `POST` | `/basemaps/import/validate` | Validate an export ZIP (`multipart/form-data`, field `package`). Persists nothing. | `200` |
 
@@ -165,21 +184,16 @@ Liveness: `GET /liveness` (served at the root, outside `/basemaps`).
 
 ### Create flow
 
-1. Upload the thumbnail (must be exactly 128x128, PNG or WebP, within the size limit; type is detected from the file bytes, not the MIME header):
+1. Get a ready thumbnail URL. This service does not accept image uploads: `catalog-web-app-bff` validates the image (128x128 PNG/WebP), uploads it to data-service and passes the resulting URL here.
 
-   ```bash
-   curl -F thumbnail=@thumb.png http://localhost:8080/basemaps/thumbnails
-   # {"url":"memory://basemaps/thumbnails/<uuid>.png","width":128,"height":128}
-   ```
-
-2. Create the Basemap, passing the returned object as `thumbnail`:
+2. Create the Basemap with that reference as `thumbnail`:
 
    ```bash
    curl -X POST http://localhost:8080/basemaps \
      -H 'content-type: application/json' \
      -d '{
        "name": "Default",
-       "thumbnail": { "url": "memory://basemaps/thumbnails/<uuid>.png", "width": 128, "height": 128 },
+       "thumbnail": { "url": "https://data-service/pvc/files/basemaps/thumbnails/<uuid>.png", "width": 128, "height": 128 },
        "isCurrent": true,
        "isForPreview": false,
        "layers": [
@@ -252,7 +266,7 @@ A catalog layer is resolved only when all of these hold:
 
 ### Export and import
 
-`GET /basemaps/{id}/export` returns a ZIP with `basemap.json` (name, flags, thumbnail file name and size, layers as stored input) and the thumbnail binary. The service downloads the thumbnail from its stored URL, so export fails with `502` if that URL is not retrievable (this includes `memory://` URLs from the stub storage).
+`GET /basemaps/{id}/export` returns a ZIP with `basemap.json` (name, flags, thumbnail file name and size, layers as stored input) and the thumbnail binary. The service downloads the thumbnail from its stored URL, so export fails with `502` if that URL is not retrievable (e.g. an unreachable data-service URL).
 
 `POST /basemaps/import/validate` reads such a ZIP and returns a review: each layer resolved like a normal read with `status` `RESOLVED` or `UNRESOLVED`, the thumbnail as base64, and `currentRoleConflict` / `previewRoleConflict` naming the Basemap that currently owns a role the package wants. The review is a draft; to import, the client posts the Basemap through the normal create endpoint. A malformed ZIP, unsafe entry names, a missing or non-128x128 thumbnail, or invalid `basemap.json` return `400`.
 
@@ -290,7 +304,7 @@ Each write reads the latest document, applies the change, checks the role invari
 
 ## Testing
 
-Tests use [Vitest](https://vitest.dev/) with `supertest` and `jest-openapi` (responses are checked against `openapi3.yaml`). They need no external services: config-server, MapProxy, catalog and blob storage are replaced by test doubles.
+Tests use [Vitest](https://vitest.dev/) with `supertest` and `jest-openapi` (responses are checked against `openapi3.yaml`). They need no external services: config-server, MapProxy and catalog are replaced by test doubles.
 
 ```bash
 npm test                  # unit + integration, with coverage (80% thresholds)
@@ -336,8 +350,7 @@ npm run helm-uninstall
 | `basemapManagement.configServer.{name,schemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
 | `basemapManagement.mapServer.url` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
 | `basemapManagement.rasterCatalog.url` | `RASTER_CATALOG_URL` | Set to the Raster PyCSW endpoint to resolve real catalog layers; empty or unreachable leaves them unresolved. |
-| `basemapManagement.dataService.url` | `DATA_SERVICE_URL` | Placeholder. |
-| `basemapManagement.uploadLimits.*` | `THUMBNAIL_MAX_SIZE_BYTES`, `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
+| `basemapManagement.uploadLimits.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
 | `env.*` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
 | `telemetry.logger.opentelemetryOptions` | `OPENTELEMETRY_LOGGING_ENABLED`, `OTLP_LOGGER_ENDPOINT_URL` | |
 
@@ -345,9 +358,29 @@ Chart defaults: 1 replica, container port 8080, service port 80, OpenShift route
 
 Deployment considerations:
 
-- The service is stateless apart from the stub thumbnail store. With stub blob storage, thumbnails are lost on restart and not shared between replicas, so **it is not production-ready for thumbnail persistence** until a real blob/data-service client replaces `StubBlobStorageClient`.
+- The service is stateless; thumbnails are stored by data-service (uploaded via `catalog-web-app-bff`), and only their URLs live in the Basemaps document.
 - Run a single replica until write conflicts across replicas are handled (see [Persistence and concurrency](#persistence-and-concurrency)).
 - CI ([.github/workflows](.github/workflows)) runs lint, OpenAPI lint, Helm lint, Snyk, tests, and a Docker build on pull requests; tagged releases (`v*`) push the image.
+
+## Mock mode
+
+> **Never use mock mode in production.** Mock data is in-memory and non-persistent: writes are lost on restart and are not shared between replicas.
+
+`BASEMAP_MOCK_DATA=true` lets the service run with no config-server. It replaces **only basemap persistence**; Raster Catalog records and MapProxy capabilities are fetched from the real services, and everything else is the real pipeline (basemap manager, write validation, role policy, `CatalogResourceResolver`, import/export), so mock responses have exactly the same shape and API contract as normal ones and a consumer (e.g. `catalog-web-app-bff`) cannot tell the modes apart.
+
+| Data source | Normal mode | Mock mode |
+| --- | --- | --- |
+| Basemap persistence | `HttpConfigServerClient` | `InMemoryConfigServerClient`, seeded with `src/basemaps/mock/mockBasemaps.ts` |
+| Raster Catalog | `HttpRasterCatalogClient` | **Real service** - the same `HttpRasterCatalogClient`, using `rasterCatalog.url` |
+| MapProxy capabilities | `HttpMapServerCapabilitiesClient` | **Real service** - the same `HttpMapServerCapabilitiesClient`, using `mapServer.url` |
+
+The only fixtures are stored basemaps (the persisted write shape) - not precomputed API responses. Their catalog layers reference `MOCK_CATALOG_PRODUCT` in `mockBasemaps.ts` (`productId`/`productType`); at read time it is looked up in the configured PyCSW, and the record's WMTS link name is looked up in MapProxy's capabilities, so **that product must exist in the environment you point at** (change `MOCK_CATALOG_PRODUCT` to a product that does). One fixture layer (`basemap-14` / `layer-14-04`) references an unknown product and therefore comes back `UNRESOLVED`. Thumbnails are inlined `data:` PNGs. The service logs a warning at startup when mock mode is on, and the fixture module is only loaded in that case.
+
+**Mock mode requires a reachable Raster Catalog (PyCSW) and MapProxy.** Configure `rasterCatalog`, `mapServer` and, for protected routes, `accessToken` as in normal mode. There is no static fallback: if either is unset, unreachable, rejects the request (e.g. `401`), or does not have the product, the existing behaviour applies - a warning is logged and the catalog layers come back `UNRESOLVED` with `layer: null, capabilities: null`.
+
+```bash
+BASEMAP_MOCK_DATA=true npm run start:dev   # rasterCatalog/mapServer/accessToken from config/default.json + config/local-development.json
+```
 
 ## Development notes
 
@@ -361,5 +394,5 @@ Troubleshooting:
 | --- | --- |
 | `502` on every `/basemaps` call | config-server unreachable or returned an error. Check `CONFIG_MANAGEMENT_URL` (origin only). |
 | All catalog layers have `status: 'UNRESOLVED'` | Expected if `RASTER_CATALOG_URL` is empty. Otherwise check `RASTER_CATALOG_URL`, `MAP_SERVER_URL`, and the warn/error logs from `CatalogResourceResolver`/`HttpRasterCatalogClient`. |
-| Export returns `502` | The stored thumbnail URL cannot be fetched (e.g. a `memory://` URL). |
+| Export returns `502` | The stored thumbnail URL cannot be fetched (e.g. data-service unreachable). |
 | `config not initialized` / config schema errors at startup | Run with `npm run start:dev`, or provide `CONFIG_SERVER_URL`, `CONFIG_NAME`, `CONFIG_VERSION`. |

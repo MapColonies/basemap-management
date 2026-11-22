@@ -1,0 +1,21 @@
+{
+  "configServer": {
+    "url": "CONFIG_MANAGEMENT_URL",
+    "configName": "CONFIG_BASEMAPS_NAME",
+    "schemaId": "CONFIG_BASEMAPS_SCHEMA_ID"
+  },
+  "rasterCatalog": {
+    "url": "RASTER_CATALOG_URL"
+  },
+  "mapServer": {
+    "url": "MAP_SERVER_URL"
+  },
+  "accessToken": {
+    "attributeName": "ACCESS_TOKEN_ATTRIBUTE_NAME",
+    "injectionType": "ACCESS_TOKEN_INJECTION_TYPE",
+    "tokenValue": "ACCESS_TOKEN_TOKEN_VALUE"
+  },
+  "uploadLimits": {
+    "importPackageMaxSizeBytes": "IMPORT_PACKAGE_MAX_SIZE_BYTES"
+  }
+}

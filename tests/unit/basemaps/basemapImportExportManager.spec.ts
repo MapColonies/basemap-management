@@ -7,7 +7,7 @@ import { CatalogResourceResolver } from '@src/basemaps/models/catalogResourceRes
 import { BasemapImportExportManager } from '@src/basemaps/models/basemapImportExportManager';
 import { BasemapsManager } from '@src/basemaps/models/basemapsManager';
 import { writeBasemapPackage } from '@src/basemaps/packaging/basemapPackageWriter';
-import type { IConfigServerClient, IConfigServerDocument } from '@src/clients/configServer/configServerClient';
+import { InMemoryConfigServerClient } from '@src/clients/configServer/inMemoryConfigServerClient';
 import type { IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import type { IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 import type { Basemap } from '@src/basemaps/models/types';
@@ -22,21 +22,6 @@ const RESOLVED_LAYER = {
 };
 const CAPABILITY = { id: WMTS_LINK_NAME, format: ['image/jpeg'], style: [{ value: 'default', isDefault: 'true' }], tileMatrixSet: [], url: [] };
 const KNOWN_UNIQUENESS = { productId: KNOWN_PRODUCT_ID, productType: ProductType.ORTHOPHOTO };
-
-class FakeConfigServerClient implements IConfigServerClient {
-  public document: IConfigServerDocument = { basemaps: [] };
-
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async getLatest(): Promise<{ document: IConfigServerDocument; version: number | undefined }> {
-    return { document: this.document, version: undefined };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
-  public async save(document: IConfigServerDocument): Promise<{ version: number }> {
-    this.document = document;
-    return { version: 1 };
-  }
-}
 
 function buildPngBuffer(): Buffer {
   const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -59,14 +44,14 @@ describe('BasemapImportExportManager', () => {
   beforeEach(async () => {
     const logger = await jsLogger({ enabled: false });
     rasterCatalogClient = {
-      // eslint-disable-next-line @typescript-eslint/require-await -- fake test double, nothing to await
+      // eslint-disable-next-line @typescript-eslint/require-await
       resolveLayer: vi.fn(async (_domain: Domain.RASTER, uniqueness: { productId: string }) =>
         uniqueness.productId === KNOWN_PRODUCT_ID ? RESOLVED_LAYER : null
       ),
     };
     const mapServerClient: IMapServerCapabilitiesClient = { getCapabilities: async () => Promise.resolve([CAPABILITY]) };
     const resolver = new CatalogResourceResolver(rasterCatalogClient, mapServerClient, logger);
-    basemapsManager = new BasemapsManager(new FakeConfigServerClient(), resolver, logger);
+    basemapsManager = new BasemapsManager(new InMemoryConfigServerClient(), resolver, logger);
     manager = new BasemapImportExportManager(basemapsManager, resolver, logger);
 
     existingBasemap = await basemapsManager.create({
@@ -83,9 +68,6 @@ describe('BasemapImportExportManager', () => {
         },
       ],
     });
-    // Creating `existingBasemap` already resolved its catalog layer once (every write resolves the
-    // output it returns) - clear that call so "not.toHaveBeenCalled()" assertions below reflect only
-    // what each test itself does.
     vi.mocked(rasterCatalogClient.resolveLayer).mockClear();
   });
 
@@ -102,7 +84,6 @@ describe('BasemapImportExportManager', () => {
       const manifest = JSON.parse(await zip.file('basemap.json')!.async('string')) as { layers: { source: unknown }[] };
 
       expect(manifest.layers[0]?.source).toEqual({ type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: KNOWN_UNIQUENESS });
-      // export is a pure read of the persisted document - no catalog round-trip required.
       expect(rasterCatalogClient.resolveLayer).not.toHaveBeenCalled();
 
       vi.unstubAllGlobals();
@@ -241,7 +222,6 @@ describe('BasemapImportExportManager', () => {
           },
         },
       ]);
-      // validateImport must never persist - the existing basemap list is untouched.
       await expect(basemapsManager.list()).resolves.toHaveLength(1);
     });
 

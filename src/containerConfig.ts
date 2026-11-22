@@ -9,8 +9,6 @@ import { getTracing } from '@common/tracing';
 import { getBasemapManagementEnv } from '@common/env';
 import { CONFIG_SERVER_CLIENT } from '@src/clients/configServer/configServerClient';
 import { HttpConfigServerClient } from '@src/clients/configServer/httpConfigServerClient';
-import { BLOB_STORAGE_CLIENT } from '@src/clients/blobStorage/blobStorageClient';
-import { StubBlobStorageClient } from '@src/clients/blobStorage/stubBlobStorageClient';
 import { RASTER_CATALOG_CLIENT } from '@src/clients/rasterCatalog/rasterCatalogClient';
 import { HttpRasterCatalogClient } from '@src/clients/rasterCatalog/httpRasterCatalogClient';
 import { MAP_SERVER_CAPABILITIES_CLIENT } from '@src/clients/mapServer/mapServerCapabilitiesClient';
@@ -34,7 +32,16 @@ const registerExternalValues = async (options?: RegisterOptions): Promise<Depend
   const metricsRegistry = new Registry();
   configInstance.initializeMetrics(metricsRegistry);
 
-  const basemapManagementEnv = getBasemapManagementEnv();
+  const basemapManagementEnv = getBasemapManagementEnv(configInstance);
+
+  let dataSourceDependencies: InjectionObject<unknown>[] = [{ token: CONFIG_SERVER_CLIENT, provider: { useClass: HttpConfigServerClient } }];
+  if (basemapManagementEnv.mockData) {
+    logger.warn({
+      msg: 'BASEMAP_MOCK_DATA=true - MOCK MODE: basemaps are served from in-memory fixtures; Raster Catalog (PyCSW) records and MapProxy capabilities are still fetched from the configured services. Writes are not persisted. NEVER use in production.',
+    });
+    const { createMockDataSourceDependencies } = await import('./basemaps/mock/index.js');
+    dataSourceDependencies = createMockDataSourceDependencies();
+  }
 
   const dependencies: InjectionObject<unknown>[] = [
     { token: SERVICES.CONFIG, provider: { useValue: configInstance } },
@@ -42,8 +49,7 @@ const registerExternalValues = async (options?: RegisterOptions): Promise<Depend
     { token: SERVICES.TRACER, provider: { useValue: tracer } },
     { token: SERVICES.METRICS, provider: { useValue: metricsRegistry } },
     { token: SERVICES.BASEMAP_MANAGEMENT_ENV, provider: { useValue: basemapManagementEnv } },
-    { token: CONFIG_SERVER_CLIENT, provider: { useClass: HttpConfigServerClient } },
-    { token: BLOB_STORAGE_CLIENT, provider: { useClass: StubBlobStorageClient } },
+    ...dataSourceDependencies,
     { token: RASTER_CATALOG_CLIENT, provider: { useClass: HttpRasterCatalogClient } },
     { token: MAP_SERVER_CAPABILITIES_CLIENT, provider: { useClass: HttpMapServerCapabilitiesClient } },
     { token: BASEMAPS_ROUTER_SYMBOL, provider: { useFactory: basemapsRouterFactory } },

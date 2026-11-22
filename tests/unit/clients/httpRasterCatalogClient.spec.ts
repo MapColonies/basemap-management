@@ -8,10 +8,11 @@ import type { IBasemapManagementEnv } from '@src/common/env';
 function envWith(url: string): IBasemapManagementEnv {
   return {
     configServer: { url: '', configName: 'basemaps', schemaId: 's' },
-    dataService: { url: '' },
-    rasterCatalog: { url },
-    mapServer: { url: '' },
-    uploadLimits: { thumbnailMaxSizeBytes: 1, importPackageMaxSizeBytes: 1 },
+    rasterCatalog: { url, exposureType: 'SERVICE' },
+    mapServer: { url: '', exposureType: 'SERVICE' },
+    accessToken: { attributeName: 'token', injectionType: 'queryParam', tokenValue: '' },
+    uploadLimits: { importPackageMaxSizeBytes: 1 },
+    mockData: false,
   };
 }
 
@@ -125,5 +126,68 @@ describe('HttpRasterCatalogClient', () => {
     const client = new HttpRasterCatalogClient(envWith('http://pycsw'), await jsLogger({ enabled: false }));
 
     await expect(client.resolveLayer(Domain.RASTER, UNIQUENESS)).rejects.toMatchObject({ statusCode: 502 });
+  });
+  describe('access token (same rules as catalog-web-app-bff requestHandlerWithToken)', () => {
+    const TOKEN = 'pycsw-secret-token';
+
+    function envWithToken(
+      injectionType: string,
+      exposureType: IBasemapManagementEnv['rasterCatalog']['exposureType'] = 'ROUTE',
+      url = 'http://pycsw/api/raster/v1'
+    ): IBasemapManagementEnv {
+      const env = envWith(url);
+      return { ...env, rasterCatalog: { url, exposureType }, accessToken: { attributeName: 'token', injectionType, tokenValue: TOKEN } };
+    }
+
+    it('adds the token as a query parameter for a ROUTE with queryParam injection', async () => {
+      const fetchMock = stubFetch(searchResultsXml(rasterRecordXml({})));
+      const client = new HttpRasterCatalogClient(envWithToken('queryParam'), await jsLogger({ enabled: false }));
+
+      await client.resolveLayer(Domain.RASTER, UNIQUENESS);
+
+      const [url, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+      expect(url).toBe(`http://pycsw/api/raster/v1?token=${TOKEN}`);
+      expect(JSON.stringify(requestInit.headers ?? {})).not.toContain(TOKEN);
+    });
+
+    it('adds the token as a header for a ROUTE with header injection', async () => {
+      const fetchMock = stubFetch(searchResultsXml(rasterRecordXml({})));
+      const client = new HttpRasterCatalogClient(envWithToken('header'), await jsLogger({ enabled: false }));
+
+      await client.resolveLayer(Domain.RASTER, UNIQUENESS);
+
+      const [url, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+      expect(url).toBe('http://pycsw/api/raster/v1');
+      expect(requestInit.headers).toMatchObject({ token: TOKEN });
+    });
+
+    it('sends no token to a SERVICE-exposed catalog', async () => {
+      const fetchMock = stubFetch(searchResultsXml(rasterRecordXml({})));
+      const client = new HttpRasterCatalogClient(envWithToken('queryParam', 'SERVICE'), await jsLogger({ enabled: false }));
+
+      await client.resolveLayer(Domain.RASTER, UNIQUENESS);
+
+      const [url, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+      expect(url).toBe('http://pycsw/api/raster/v1');
+      expect(JSON.stringify(requestInit.headers ?? {})).not.toContain(TOKEN);
+    });
+
+    it('never exposes the token in the thrown error', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          throw new TypeError(`fetch failed for ${url}`);
+        })
+      );
+      const client = new HttpRasterCatalogClient(envWithToken('queryParam'), await jsLogger({ enabled: false }));
+
+      const error = (await client.resolveLayer(Domain.RASTER, UNIQUENESS).catch((err: unknown) => err)) as Error;
+
+      expect(error.message).toMatch(/Raster PyCSW request failed/);
+      expect(error.message).not.toContain(TOKEN);
+    });
   });
 });
