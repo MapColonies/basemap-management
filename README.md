@@ -225,7 +225,7 @@ Liveness: `GET /liveness` (served at the root, outside `/basemaps`).
 
 ### Write rules
 
-- `name` non-empty; `thumbnail.url` an absolute `http(s)` URL (as returned by the `catalog-web-app-bff` upload) or a `data:image/png|webp;base64,...` URL - relative URLs, other schemes and malformed URLs are rejected (rule owned by `@map-colonies/app-shared`); `opacity` between 0 and 1; `order` integer >= 0.
+- `name` non-empty; `thumbnail.url` non-empty (not blank; its form is not validated - rule owned by `@map-colonies/app-shared`, a `.refine()` that `openapi3.yaml` cannot express, so a blank url is rejected by the service's Zod validation, not by the OpenAPI validator); `opacity` between 0 and 1; `order` integer >= 0.
 - Layer `id` and `order` must each be unique within a Basemap.
 - Catalog layers need a non-empty `uniqueness.productId` and a known `productType` (`Orthophoto`, `OrthophotoHistory`, `OrthophotoBest`, `RasterMap`, `RasterMapBest`, `RasterAid`, `RasterAidBest`, `RasterVector`, `RasterVectorBest`).
 - External layers need `protocol` (`XYZ`, `WMTS`, `WMS`, `OSM`), `name` and `url`.
@@ -300,6 +300,16 @@ interface BasemapLayerBase {
 // config-server document for CONFIG_BASEMAPS_NAME
 { "basemaps": [ { "id": "<uuid>", "name": "...", "thumbnail": {...}, "isCurrent": true, "isForPreview": false, "layers": [ /* input-shaped layers */ ] } ] }
 ```
+
+### Invalid persisted entries
+
+Every read validates each stored Basemap with the app-shared schema, one entry at a time. An entry that fails (for example one written before a stricter app-shared rule) is logged as `skipping invalid persisted basemap entry` with its id and issues, and then:
+
+- it is left out of `GET /basemaps`, export and the import review's role-conflict check (the other Basemaps are unaffected);
+- `GET /basemaps/{id}` returns `500` ("could not be loaded"); `PUT`/`DELETE` return `404`, so it cannot be repaired or removed through this API;
+- every write keeps it in the document unchanged, but the single-owner role check does not see it: if it owns `isCurrent`/`isForPreview`, another Basemap can take the role, and the document then has two owners.
+
+Before deploying a stricter app-shared rule, find such entries in the config-server document and fix or delete them while the previous version is still running.
 
 ### Persistence and concurrency
 
@@ -400,7 +410,8 @@ The Zod schemas are the single source of truth; `openapi3.yaml` is generated fro
 - Reusable `$ref` components: `registry.register()` returns a *named copy* of a schema, while app-shared's compositions nest the un-named originals. At each composition joint the generator re-composes with `.extend()` / `z.discriminatedUnion()`, replacing only the nested field with its named copy. No validation rule is restated.
 - Equivalence guard: before writing, every composed schema is rendered and compared - `$ref`s resolved, documentation keywords ignored - with the app-shared schema it stands for. Any difference (required fields, types, enums, bounds, patterns, nested schemas, union branches) aborts generation with the JSON pointer of the first difference. If app-shared changes shape, update the composition in `openapi/document.cts`.
 - OpenAPI 3.0.1 is kept (`jest-openapi` does not support 3.1). zod-to-openapi renders `z.null()` as a type-less `{ nullable: true }`, which Ajv rejects; the generator rewrites exactly that shape to `{ type: object, nullable: true, enum: [null] }`.
-- `express-openapi-validator` still validates requests against the generated file (multipart upload, path parameters, unknown routes/methods, early shape rejection). The service's own Zod validation and business rules remain authoritative for what OpenAPI cannot express (e.g. whitespace-only names, the external-layer protocol list, duplicate layer ids and orders).
+- `express-openapi-validator` still validates requests against the generated file (multipart upload, path parameters, unknown routes/methods, early shape rejection). The service's own Zod validation and business rules remain authoritative for what OpenAPI cannot express (e.g. blank names and thumbnail urls, the external-layer protocol list, duplicate layer ids and orders).
+- The guard compares what OpenAPI can express. Refinements (`.refine`/`.superRefine`) are invisible to both sides, so they are not checked by the guard and are not part of the contract; they are enforced only by the service's Zod validation.
 
 Workflow after changing a schema (in app-shared or here) or an operation's documentation:
 

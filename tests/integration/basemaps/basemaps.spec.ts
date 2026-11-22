@@ -166,6 +166,17 @@ describe('basemaps', () => {
       });
 
       expect(response.status).toBe(httpStatusCodes.BAD_REQUEST);
+      expect((response.body as { message: string }).message).toBe('request/body/layers/0/opacity must be <= 1');
+    });
+
+    it.each(['', '   '])('should reject the blank thumbnail url %j with 400 from the Zod validation', async (url) => {
+      const response = await request(app)
+        .post('/basemaps')
+        .send({ name: 'Blank Thumbnail', thumbnail: { ...readyThumbnail(), url }, isCurrent: false, isForPreview: false, layers: [] });
+
+      expect(response.status).toBe(httpStatusCodes.BAD_REQUEST);
+      expect(response.body).toEqual({ message: 'thumbnail.url: thumbnail.url must not be empty' });
+      expect(configServerClient.document.basemaps).toEqual([]);
     });
 
     it('returns 404 for an unknown basemap id', async () => {

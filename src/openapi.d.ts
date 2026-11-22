@@ -125,7 +125,6 @@ export type components = {
     };
     /** @description A persisted thumbnail reference. The binary image itself lives in data-service (uploaded via catalog-web-app-bff); only its URL is part of the Basemap configuration. */
     basemapThumbnail: {
-      /** Format: uri */
       url: string;
       /** @enum {number} */
       width: 128;

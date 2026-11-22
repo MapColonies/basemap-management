@@ -5,6 +5,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type * as zodModule from 'zod';
 import type { AnyZodObject, ZodTypeAny } from 'zod';
 import * as shared from '@map-colonies/app-shared';
+import { CapabilityWMTSSchema } from '@map-colonies/wmts-client';
+import { LayerRasterRecordSchema } from '@src/basemaps/models/catalogTypes';
 import { loadDocumentModule } from './documentModule';
 
 const documentModule = loadDocumentModule();
@@ -68,6 +70,12 @@ describe('OpenAPI schema equivalence guard', () => {
 
       expect(() => assertEquivalent(composeWriteInput({ thumbnail }))).not.toThrow();
     });
+
+    it('should not see a refinement, because OpenAPI cannot express one', () => {
+      const reference = shared.BasemapWriteInputSchema.extend({ name: z.string().min(1) });
+
+      expect(() => assertEquivalent(composeWriteInput(), reference)).not.toThrow();
+    });
   });
 
   describe('detects', () => {
@@ -106,10 +114,10 @@ describe('OpenAPI schema equivalence guard', () => {
       expect(() => assertEquivalent(composeWriteInput({ uniqueness }))).toThrow(/\/properties\/uniqueness\/properties\/productId\/nullable/);
     });
 
-    it('should detect a changed string constraint (the thumbnail URL pattern)', () => {
+    it('should detect an added string constraint (a thumbnail url format)', () => {
       const thumbnail = shared.BasemapThumbnailSchema.extend({ url: z.string().url() });
 
-      expect(() => assertEquivalent(composeWriteInput({ thumbnail }))).toThrow(/\/properties\/thumbnail\/properties\/url\/pattern/);
+      expect(() => assertEquivalent(composeWriteInput({ thumbnail }))).toThrow(/\/properties\/thumbnail\/properties\/url\/format/);
     });
 
     it('should detect a missing union branch', () => {
@@ -129,6 +137,24 @@ describe('OpenAPI schema equivalence guard', () => {
       const sourceInput = z.union([shared.CatalogResourceLayerSourceSchema, shared.ExternalLayerSourceSchema]);
 
       expect(() => assertEquivalent(composeWriteInput({ sourceInput }))).toThrow(/\/(anyOf|oneOf)/);
+    });
+
+    it('should detect a field that became nullable', () => {
+      const thumbnail = shared.BasemapThumbnailSchema.extend({ width: shared.BasemapThumbnailSchema.shape.width.nullable() });
+
+      expect(() => assertEquivalent(composeWriteInput({ thumbnail }))).toThrow(
+        /\/properties\/thumbnail\/properties\/width\/nullable: true vs missing/
+      );
+    });
+
+    it('should detect drift inside a factory-built output union branch', () => {
+      const capability = new OpenAPIRegistry().register('capability', CapabilityWMTSSchema.partial({ style: true }));
+      const composed = shared.createBasemapLayerOutputSchema(LayerRasterRecordSchema, capability);
+      const reference = shared.createBasemapLayerOutputSchema(LayerRasterRecordSchema, CapabilityWMTSSchema);
+
+      expect(() => documentModule.assertSchemasEquivalent([{ name: 'basemapLayerOutput', composed, reference }])).toThrow(
+        /\/properties\/source\/anyOf\/0\/properties\/capabilities\/required/
+      );
     });
 
     it('should detect drift on the app-shared (reference) side as well', () => {
