@@ -17,10 +17,8 @@ import { SERVICES } from '@common/constants';
 import { initConfig } from '@src/common/config';
 import { CONFIG_SERVER_CLIENT } from '@src/clients/configServer/configServerClient';
 import { InMemoryConfigServerClient } from '@src/clients/configServer/inMemoryConfigServerClient';
-import { RASTER_CATALOG_CLIENT } from '@src/clients/rasterCatalog/rasterCatalogClient';
-import { FixtureRasterCatalogClient } from '@src/clients/rasterCatalog/fixtureRasterCatalogClient';
-import { MAP_SERVER_CAPABILITIES_CLIENT } from '@src/clients/mapServer/mapServerCapabilitiesClient';
-import { FixtureMapServerCapabilitiesClient } from '@src/clients/mapServer/fixtureMapServerCapabilitiesClient';
+import { RASTER_CATALOG_CLIENT, type IRasterCatalogClient } from '@src/clients/rasterCatalog/rasterCatalogClient';
+import { MAP_SERVER_CAPABILITIES_CLIENT, type IMapServerCapabilitiesClient } from '@src/clients/mapServer/mapServerCapabilitiesClient';
 import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
 
 const DIMENSION = 128;
@@ -63,7 +61,14 @@ describe('basemaps', () => {
   let app: Application;
   let requestSender: RequestSender<paths, operations>;
   let configServerClient: InMemoryConfigServerClient;
-  let mapServerClient: FixtureMapServerCapabilitiesClient;
+  const rasterCatalogClient: IRasterCatalogClient = {
+    resolveLayer: async (_domain, { productId, productType }) =>
+      Promise.resolve(RESOLVED_LAYER.productId === productId && RESOLVED_LAYER.productType === productType ? RESOLVED_LAYER : null),
+  };
+  let mapServerCapabilities: CapabilityWMTS[];
+  const mapServerClient: IMapServerCapabilitiesClient = {
+    getCapabilities: async () => Promise.resolve(mapServerCapabilities),
+  };
 
   beforeAll(async () => {
     await initConfig(true);
@@ -71,13 +76,13 @@ describe('basemaps', () => {
 
   beforeEach(async () => {
     configServerClient = new InMemoryConfigServerClient();
-    mapServerClient = new FixtureMapServerCapabilitiesClient([CAPABILITY]);
+    mapServerCapabilities = [CAPABILITY];
     [app] = await getApp({
       override: [
         { token: SERVICES.LOGGER, provider: { useValue: await jsLogger({ enabled: false }) } },
         { token: SERVICES.TRACER, provider: { useValue: trace.getTracer('testTracer') } },
         { token: CONFIG_SERVER_CLIENT, provider: { useValue: configServerClient } },
-        { token: RASTER_CATALOG_CLIENT, provider: { useValue: new FixtureRasterCatalogClient([RESOLVED_LAYER]) } },
+        { token: RASTER_CATALOG_CLIENT, provider: { useValue: rasterCatalogClient } },
         { token: MAP_SERVER_CAPABILITIES_CLIENT, provider: { useValue: mapServerClient } },
       ],
       useChild: true,
@@ -358,7 +363,7 @@ describe('basemaps', () => {
 
     it('returns the layer as UNRESOLVED with null layer/capabilities when MapProxy has no matching capability', async () => {
       const basemapId = await createBasemapWithRasterLayer();
-      mapServerClient.capabilities = [];
+      mapServerCapabilities = [];
 
       const response = await requestSender.getBasemap({ pathParams: { basemapId } });
 

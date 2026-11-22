@@ -126,36 +126,19 @@ service:
 serviceAccount:
   create: false
 
-# --------------------------------------------------------------------------
-# basemap-management-specific configuration below - not part of the generic
-# mc-chart.* mechanism, no lookup-tables equivalent.
-# --------------------------------------------------------------------------
-
-# @map-colonies/config's own bootstrap options (src/common/config.ts calls initConfig() with no
-# explicit offlineMode, unlike lookup-tables which hardcodes initConfig(true) - so these env vars
-# are live and read internally by the @map-colonies/config package itself).
 configManagement:
   offlineMode: false
   name: 'basemap-management'
   version: 'latest'
   serverUrl: 'http://localhost:8080/api'
 
-# Basemap-domain settings (A.10). Read directly from process.env in src/common/env.ts rather than
-# through @map-colonies/config, because the shared commonBoilerplateV3 schema that package validates
-# against has no confirmed process yet for extending it with a service's own domain settings.
 basemapManagement:
   configServer:
     name: 'basemaps'
-    # Not yet registered anywhere config-server schemas are maintained - see README "Unresolved
-    # external contracts". Do not invent a different id once registration happens; update this value.
     schemaId: 'https://mapcolonies.com/basemaps/v1'
   rasterCatalog:
-    # Raster PyCSW base URL, queried via @map-colonies/csw-client. If empty or unreachable, catalog
-    # layers come back with status: 'UNRESOLVED'.
     url: ''
   mapServer:
-    # Raster MapProxy base URL - needed to resolve catalog layers' WMTS capabilities;
-    # when unreachable, catalog layers come back with status: 'UNRESOLVED'.
     url: ''
   uploadLimits:
     importPackageMaxSizeBytes: 10485760 # 10MB - generous for a tiny JSON doc + one 128x128 image

@@ -32,16 +32,12 @@ const registerExternalValues = async (options?: RegisterOptions): Promise<Depend
   const metricsRegistry = new Registry();
   configInstance.initializeMetrics(metricsRegistry);
 
-  const basemapManagementEnv = getBasemapManagementEnv();
+  const basemapManagementEnv = getBasemapManagementEnv(configInstance);
 
-  let dataSourceDependencies: InjectionObject<unknown>[] = [
-    { token: CONFIG_SERVER_CLIENT, provider: { useClass: HttpConfigServerClient } },
-    { token: RASTER_CATALOG_CLIENT, provider: { useClass: HttpRasterCatalogClient } },
-    { token: MAP_SERVER_CAPABILITIES_CLIENT, provider: { useClass: HttpMapServerCapabilitiesClient } },
-  ];
+  let dataSourceDependencies: InjectionObject<unknown>[] = [{ token: CONFIG_SERVER_CLIENT, provider: { useClass: HttpConfigServerClient } }];
   if (basemapManagementEnv.mockData) {
     logger.warn({
-      msg: 'BASEMAP_MOCK_DATA=true - MOCK MODE: basemaps, raster catalog records and MapProxy capabilities are served from in-memory fixtures. Writes are not persisted. NEVER use in production.',
+      msg: 'BASEMAP_MOCK_DATA=true - MOCK MODE: basemaps are served from in-memory fixtures; Raster Catalog (PyCSW) records and MapProxy capabilities are still fetched from the configured services. Writes are not persisted. NEVER use in production.',
     });
     const { createMockDataSourceDependencies } = await import('./basemaps/mock/index.js');
     dataSourceDependencies = createMockDataSourceDependencies();
@@ -54,6 +50,8 @@ const registerExternalValues = async (options?: RegisterOptions): Promise<Depend
     { token: SERVICES.METRICS, provider: { useValue: metricsRegistry } },
     { token: SERVICES.BASEMAP_MANAGEMENT_ENV, provider: { useValue: basemapManagementEnv } },
     ...dataSourceDependencies,
+    { token: RASTER_CATALOG_CLIENT, provider: { useClass: HttpRasterCatalogClient } },
+    { token: MAP_SERVER_CAPABILITIES_CLIENT, provider: { useClass: HttpMapServerCapabilitiesClient } },
     { token: BASEMAPS_ROUTER_SYMBOL, provider: { useFactory: basemapsRouterFactory } },
     {
       token: 'onSignal',

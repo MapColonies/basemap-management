@@ -1,6 +1,7 @@
-import { Domain } from '@map-colonies/types';
+import { Domain, ProductType } from '@map-colonies/types';
 import { SourceType, type CatalogResourceLayerSource, type PersistedBasemap } from '@map-colonies/app-shared';
-import { MOCK_RASTER_RECORD } from './mockRasterRecord';
+
+const MOCK_CATALOG_PRODUCT = { productId: 'MADRID_HEXAGON', productType: ProductType.ORTHOPHOTO } as const;
 
 const MOCK_THUMBNAIL = {
   url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAAw0lEQVR42u3RMQEAAAzCMPyrQSIytiOV0KQ6LRYAACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAB8aFsnB72+Q3bTAAAAAElFTkSuQmCC',
@@ -11,16 +12,16 @@ const MOCK_THUMBNAIL = {
 const CATALOG_SOURCE: CatalogResourceLayerSource = {
   type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,
-  uniqueness: { productId: MOCK_RASTER_RECORD.productId, productType: MOCK_RASTER_RECORD.productType },
+  uniqueness: { productId: MOCK_CATALOG_PRODUCT.productId, productType: MOCK_CATALOG_PRODUCT.productType },
 };
 
 const UNKNOWN_CATALOG_SOURCE: CatalogResourceLayerSource = {
   type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,
-  uniqueness: { productId: 'Unknown_Mock_Product', productType: MOCK_RASTER_RECORD.productType },
+  uniqueness: { productId: 'Unknown_Mock_Product', productType: MOCK_CATALOG_PRODUCT.productType },
 };
 
-export const MOCK_PERSISTED_BASEMAPS: PersistedBasemap[] = [
+const MOCK_PERSISTED_BASEMAPS: PersistedBasemap[] = [
   {
     id: 'basemap-01',
     name: 'OpenStreetMap',
@@ -328,3 +329,5 @@ export const MOCK_PERSISTED_BASEMAPS: PersistedBasemap[] = [
     layers: [{ id: 'layer-15-01', order: 0, opacity: 0.4, source: CATALOG_SOURCE }],
   },
 ];
+
+export { MOCK_CATALOG_PRODUCT, MOCK_PERSISTED_BASEMAPS };

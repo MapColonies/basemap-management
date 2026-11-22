@@ -79,12 +79,10 @@ npm install
 `start:dev` builds the project, enables `@map-colonies/config` offline mode and source maps, and starts the server on port 8080:
 
 ```bash
-CONFIG_MANAGEMENT_URL=http://localhost:8080 \
-MAP_SERVER_URL=http://localhost:8081 \
 npm run start:dev
 ```
 
-Replace the URLs with your config-server and MapProxy. `CONFIG_MANAGEMENT_URL` defaults to `http://localhost:8080`, which is also this service's own port, so point it elsewhere or change `SERVER_PORT`.
+Service settings (MapProxy, Raster Catalog, config-server, access token) are read from `config/default.json`, so edit them there - or, for anything you don't want tracked (e.g. a MapProxy token), in a git-ignored `config/local-development.json` (see [Configuration](#configuration)). Environment variables still override both. `CONFIG_MANAGEMENT_URL` defaults to `http://localhost:8080`, which is also this service's own port, so point it elsewhere or change `SERVER_PORT`.
 
 Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/api.json`).
 
@@ -110,19 +108,41 @@ Commits follow Conventional Commits (enforced by commitlint). Releases are manag
 
 Settings come from two places.
 
-### 1. Service settings (environment variables)
+### 1. Service settings (`config/*.json` + environment overrides)
 
-Read directly from `process.env` in [src/common/env.ts](src/common/env.ts). Invalid values fail startup.
+Read in [src/common/env.ts](src/common/env.ts) from the `@map-colonies/config` instance and validated with zod; invalid values fail startup with the offending paths (values, including the token, are never echoed). `@map-colonies/config` loads the local files through node-config, so the layering is the same as in `catalog-web-app-bff`:
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
-| `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
-| `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
-| `MAP_SERVER_URL` | `''` | Raster MapProxy base URL (maps to `mapServer.url` in the env object). `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present. If empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
-| `RASTER_CATALOG_URL` | `''` | Raster PyCSW base URL. If empty or unreachable, the catalog layer's source comes back with `status: 'UNRESOLVED'`. |
-| `IMPORT_PACKAGE_MAX_SIZE_BYTES` | `10485760` (10 MiB) | Max import package upload size. |
-| `BASEMAP_MOCK_DATA` | unset (off) | **Development/demo only. Never enable in production.** `true` turns on [mock mode](#mock-mode). Only the exact values `true` and `false` are accepted; any other value fails startup. Deliberately not exposed in the Helm chart. Unrelated to `CONFIG_OFFLINE_MODE`. |
+1. `config/default.json` - local-development defaults (integration MapProxy / PyCSW URLs, no token).
+2. `config/{NODE_ENV}.json` - `production.json` (the Docker image sets `NODE_ENV=production`) and `test.json` reset the MapProxy / PyCSW URLs to `''`, so a deployment that leaves them unset behaves as before (catalog layers `UNRESOLVED`) instead of silently using integration services.
+3. `config/local.json` / `config/local-{NODE_ENV}.json` - **git-ignored** (and excluded from the Docker build context) personal overrides; put a MapProxy token here, e.g. `config/local-development.json` for `npm run start:dev`.
+4. Environment variables, mapped in `config/custom-environment-variables.json` (names below; unchanged for Helm, plus the BFF's `ACCESS_TOKEN_*`). An **empty** variable does not override (node-config semantics).
+
+`CONFIG_OFFLINE_MODE` only decides whether the boilerplate settings are also fetched from a remote config server; the local files and env overrides above apply in both modes.
+
+| Config path | Variable | Default (`default.json`) | Description |
+| --- | --- | --- | --- |
+| `configServer.url` | `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
+| `configServer.configName` | `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
+| `configServer.schemaId` | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
+| `mapServer.url` | `MAP_SERVER_URL` | integration MapProxy (`''` in production/test) | Raster MapProxy base URL. `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present; an existing query string is kept. If empty or unreachable, catalog layers come back `UNRESOLVED`. |
+| `mapServer.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `mapServices.raster.exposureType`. The token is only sent to a `ROUTE`. |
+| `rasterCatalog.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `csw.raster.exposureType`. The token is only sent to a `ROUTE`. |
+| `accessToken.attributeName` | `ACCESS_TOKEN_ATTRIBUTE_NAME` | `token` | Same as the BFF. |
+| `accessToken.injectionType` | `ACCESS_TOKEN_INJECTION_TYPE` | `queryParam` | `queryParam` or `header` (case-insensitive), same as the BFF. As in the BFF, PyCSW requests support both; WMTS capabilities requests support only `queryParam` (`header` logs a warning and sends no token to MapProxy). |
+| `accessToken.tokenValue` | `ACCESS_TOKEN_TOKEN_VALUE` | `''` | MapProxy token. Empty = unauthenticated requests. Never commit it; it is redacted from MapProxy and PyCSW client logs and errors. |
+| `rasterCatalog.url` | `RASTER_CATALOG_URL` | integration PyCSW (`''` in production/test) | Raster PyCSW base URL. If empty or unreachable, catalog layers come back `UNRESOLVED`. |
+| `uploadLimits.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | `10485760` (10 MiB) | Max import package upload size. |
+| - | `BASEMAP_MOCK_DATA` | unset (off) | **Raw environment variable only (not a config file key). Development/demo only. Never enable in production.** `true` turns on [mock mode](#mock-mode). Only the exact values `true` and `false` are accepted; any other value fails startup. Deliberately not exposed in the Helm chart. Unrelated to `CONFIG_OFFLINE_MODE`. |
+
+Example git-ignored `config/local-development.json`:
+
+```json
+{
+  "rasterCatalog": { "url": "https://<pycsw-route>/api/raster/v1", "exposureType": "ROUTE" },
+  "mapServer": { "url": "https://<mapproxy-route>/api/raster/v1", "exposureType": "ROUTE" },
+  "accessToken": { "attributeName": "token", "injectionType": "queryParam", "tokenValue": "<YOUR_MAPPROXY_TOKEN>" }
+}
+```
 
 The multipart parser limit is `IMPORT_PACKAGE_MAX_SIZE_BYTES` (import is the only multipart route). The import ZIP reader separately caps the archive at 10 entries and 10 MiB uncompressed.
 
@@ -346,18 +366,20 @@ Deployment considerations:
 
 > **Never use mock mode in production.** Mock data is in-memory and non-persistent: writes are lost on restart and are not shared between replicas.
 
-`BASEMAP_MOCK_DATA=true` lets the service run with no config-server, Raster Catalog or MapProxy. It replaces **only those three external data sources**; everything else is the real pipeline (basemap manager, write validation, role policy, `CatalogResourceResolver`, import/export), so mock responses have exactly the same shape and API contract as normal ones and a consumer (e.g. `catalog-web-app-bff`) cannot tell the modes apart.
+`BASEMAP_MOCK_DATA=true` lets the service run with no config-server. It replaces **only basemap persistence**; Raster Catalog records and MapProxy capabilities are fetched from the real services, and everything else is the real pipeline (basemap manager, write validation, role policy, `CatalogResourceResolver`, import/export), so mock responses have exactly the same shape and API contract as normal ones and a consumer (e.g. `catalog-web-app-bff`) cannot tell the modes apart.
 
 | Data source | Normal mode | Mock mode |
 | --- | --- | --- |
 | Basemap persistence | `HttpConfigServerClient` | `InMemoryConfigServerClient`, seeded with `src/basemaps/mock/mockBasemaps.ts` |
-| Raster Catalog | `HttpRasterCatalogClient` | `FixtureRasterCatalogClient` with `src/basemaps/mock/mockRasterRecord.ts` |
-| MapProxy capabilities | `HttpMapServerCapabilitiesClient` | `FixtureMapServerCapabilitiesClient` with `src/basemaps/mock/mockCapabilities.ts` (captured from integration MapProxy) |
+| Raster Catalog | `HttpRasterCatalogClient` | **Real service** - the same `HttpRasterCatalogClient`, using `rasterCatalog.url` |
+| MapProxy capabilities | `HttpMapServerCapabilitiesClient` | **Real service** - the same `HttpMapServerCapabilitiesClient`, using `mapServer.url` |
 
-The fixtures are stored basemaps (the persisted write shape), a catalog record and a WMTS capability - not precomputed API responses. Resolution status, `layer` and `capabilities` are computed at read time; one fixture layer (`basemap-14` / `layer-14-04`) references an unknown product and therefore comes back `UNRESOLVED`. Thumbnails are inlined `data:` PNGs so export/import works offline. The service logs a warning at startup when mock mode is on, and the fixture modules are only loaded in that case.
+The only fixtures are stored basemaps (the persisted write shape) - not precomputed API responses. Their catalog layers reference `MOCK_CATALOG_PRODUCT` in `mockBasemaps.ts` (`productId`/`productType`); at read time it is looked up in the configured PyCSW, and the record's WMTS link name is looked up in MapProxy's capabilities, so **that product must exist in the environment you point at** (change `MOCK_CATALOG_PRODUCT` to a product that does). One fixture layer (`basemap-14` / `layer-14-04`) references an unknown product and therefore comes back `UNRESOLVED`. Thumbnails are inlined `data:` PNGs. The service logs a warning at startup when mock mode is on, and the fixture module is only loaded in that case.
+
+**Mock mode requires a reachable Raster Catalog (PyCSW) and MapProxy.** Configure `rasterCatalog`, `mapServer` and, for protected routes, `accessToken` as in normal mode. There is no static fallback: if either is unset, unreachable, rejects the request (e.g. `401`), or does not have the product, the existing behaviour applies - a warning is logged and the catalog layers come back `UNRESOLVED` with `layer: null, capabilities: null`.
 
 ```bash
-BASEMAP_MOCK_DATA=true npm run start:dev
+BASEMAP_MOCK_DATA=true npm run start:dev   # rasterCatalog/mapServer/accessToken from config/default.json + config/local-development.json
 ```
 
 ## Development notes

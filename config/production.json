@@ -1,1 +1,8 @@
-{}
+{
+  "rasterCatalog": {
+    "url": ""
+  },
+  "mapServer": {
+    "url": ""
+  }
+}

@@ -9,6 +9,7 @@ import { UpstreamServiceError } from '@common/errors';
 import type { IBasemapManagementEnv } from '@common/env';
 import type { LayerRasterRecord } from '@src/basemaps/models/catalogTypes';
 import type { ResolvableRasterUniqueness } from '@src/basemaps/models/types';
+import { createRedactor, getTokenInjection, withTokenQueryParam } from '../accessToken';
 import type { IRasterCatalogClient } from './rasterCatalogClient';
 
 const RASTER_TYPENAME = 'mc:MCRasterRecord';
@@ -42,6 +43,7 @@ function extractRawRecords(response: unknown): Record<string, unknown>[] {
 export class HttpRasterCatalogClient implements IRasterCatalogClient {
   private readonly rasterCatalogUrl: string;
   private readonly requestExecutor: IRequestExecutor;
+  private readonly redact: (value: string) => string;
   private cswClient: CswClient | undefined;
 
   public constructor(
@@ -49,9 +51,14 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
     @inject(SERVICES.LOGGER) private readonly logger: Logger
   ) {
     this.rasterCatalogUrl = env.rasterCatalog.url;
+    const { accessToken } = env;
+    const injection = getTokenInjection(env.rasterCatalog.exposureType, accessToken);
+    this.redact = createRedactor(injection, accessToken);
     const requestExecutor: IRequestExecutor = async (url, method, params) => {
       const { data, headers } = params as { data?: string; headers?: Record<string, string> };
-      const response = await fetch(url, { method, headers, body: data });
+      const requestUrl = injection === 'queryParam' && URL.canParse(url) ? withTokenQueryParam(url, accessToken) : url;
+      const requestHeaders = injection === 'header' ? { ...headers, [accessToken.attributeName]: accessToken.tokenValue } : headers;
+      const response = await fetch(requestUrl, { method, headers: requestHeaders, body: data });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -68,7 +75,7 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
       this.cswClient ??= new CswClient(this.rasterCatalogUrl, this.requestExecutor);
       cswClient = this.cswClient;
     } catch (error) {
-      throw new UpstreamServiceError(`Raster PyCSW request failed: ${String(error)}`);
+      throw new UpstreamServiceError(`Raster PyCSW request failed: ${this.redact(String(error))}`);
     }
 
     const response: unknown = await cswClient
@@ -79,7 +86,7 @@ export class HttpRasterCatalogClient implements IRasterCatalogClient {
         ],
       })
       .catch((error: unknown) => {
-        throw new UpstreamServiceError(`Raster PyCSW request failed: ${String(error)}`);
+        throw new UpstreamServiceError(`Raster PyCSW request failed: ${this.redact(String(error))}`);
       });
 
     const rawMatches = extractRawRecords(response);
