@@ -175,7 +175,9 @@ describe('basemaps', () => {
         .send({ name: 'Blank Thumbnail', thumbnail: { ...readyThumbnail(), url }, isCurrent: false, isForPreview: false, layers: [] });
 
       expect(response.status).toBe(httpStatusCodes.BAD_REQUEST);
-      expect(response.body).toEqual({ message: 'thumbnail.url: thumbnail.url must not be empty' });
+      expect(response.body).toEqual({
+        message: 'thumbnail.url: thumbnail.url must not be empty - upload a thumbnail via POST /basemaps/thumbnails first',
+      });
       expect(configServerClient.document.basemaps).toEqual([]);
     });
 
