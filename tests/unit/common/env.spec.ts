@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -108,14 +108,18 @@ describe('getBasemapManagementEnv', () => {
     });
 
     it('reads values from the config files', async () => {
+      const defaults = JSON.parse(readFileSync(path.join(configDir, 'default.json'), 'utf8')) as {
+        configServer: unknown;
+        uploadLimits: { importPackageMaxSizeBytes: number };
+      };
       await initConfig(true);
 
       const env = getBasemapManagementEnv(getConfig());
 
       expect(env.mapServer).toEqual({ url: 'http://mapproxy-from-file/api/raster/v1', exposureType: 'ROUTE' });
       expect(env.accessToken).toEqual({ attributeName: 'token', injectionType: 'queryParam', tokenValue: SECRET });
-      expect(env.configServer).toEqual({ url: 'http://localhost:8080', configName: 'basemaps', schemaId: 'https://mapcolonies.com/basemaps/v1' });
-      expect(env.uploadLimits.importPackageMaxSizeBytes).toBe(10485760);
+      expect(env.configServer).toEqual(defaults.configServer);
+      expect(env.uploadLimits.importPackageMaxSizeBytes).toBe(defaults.uploadLimits.importPackageMaxSizeBytes);
     });
 
     it('lets environment variables override the config files', async () => {
