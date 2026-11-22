@@ -24,12 +24,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Verify generated OpenAPI types are up to date
+      - name: Verify generated OpenAPI document and types are up to date
         run: |
+          npm run generate:openapi
           npm run generate:openapi-types
-          if ! git diff --quiet -- src/openapi.d.ts; then
-            echo "::error file=src/openapi.d.ts::src/openapi.d.ts is out of date with openapi3.yaml. Run 'npm run generate:openapi-types' locally and commit the updated src/openapi.d.ts."
-            git diff -- src/openapi.d.ts
+          if ! git diff --quiet -- openapi3.yaml src/openapi.d.ts; then
+            echo "::error file=openapi3.yaml::openapi3.yaml and/or src/openapi.d.ts are out of date with the Zod schemas. Run 'npm run generate:openapi && npm run generate:openapi-types' locally and commit the result."
+            git diff -- openapi3.yaml src/openapi.d.ts
             exit 1
           fi
 

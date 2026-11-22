@@ -12,7 +12,9 @@ import {
   type RasterUniqueness,
 } from '@map-colonies/app-shared';
 import type { CapabilityWMTS } from '@map-colonies/wmts-client';
+import type { z } from 'zod';
 import { ImageryProtocolType, type LayerRasterRecord } from './catalogTypes';
+import type { ImportReviewBaseSchema, ImportReviewRoleConflictSchema, ImportReviewThumbnailSchema } from './importReview.schema';
 
 export { ResourceResolutionStatus as Status } from '@map-colonies/app-shared';
 export type {
@@ -59,22 +61,10 @@ export interface ImportPackageThumbnail {
   height: number;
 }
 
-export interface ImportReviewRoleConflict {
-  basemapId: string;
-  basemapName: string;
-}
+export type ImportReviewRoleConflict = z.infer<typeof ImportReviewRoleConflictSchema>;
 
 export type ImportReviewLayer = BasemapLayerOutput;
 
-export type ImportReviewThumbnail =
-  { included: true; width: number; height: number; mimeType: 'image/png' | 'image/webp'; dataBase64: string } | { included: false };
+export type ImportReviewThumbnail = z.infer<typeof ImportReviewThumbnailSchema>;
 
-export interface ImportReview {
-  name: string;
-  isCurrent: boolean;
-  isForPreview: boolean;
-  currentRoleConflict?: ImportReviewRoleConflict;
-  previewRoleConflict?: ImportReviewRoleConflict;
-  thumbnail: ImportReviewThumbnail;
-  layers: ImportReviewLayer[];
-}
+export type ImportReview = z.infer<typeof ImportReviewBaseSchema> & { layers: ImportReviewLayer[] };

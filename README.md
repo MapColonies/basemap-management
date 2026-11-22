@@ -50,7 +50,8 @@ src/
     thumbnails/    PNG/WebP header sniffing (used by the import ZIP reader)
   clients/         configServer, mapServer, rasterCatalog
   common/          config, env, errors, tracing, multipart helper
-openapi3.yaml      API contract (also used for request validation)
+openapi/           OpenAPI generator: builds openapi3.yaml from the Zod schemas
+openapi3.yaml      API contract - GENERATED, do not edit (also used for request validation)
 config/            node-config defaults
 helm/              Helm chart
 tests/             unit and integration tests
@@ -94,8 +95,10 @@ Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/
 | --- | --- |
 | `npm run start:dev` | Build and run in offline-config mode with source maps |
 | `npm start` | Build and run |
-| `npm run build` | Clean, regenerate OpenAPI types, compile to `dist/`, copy assets |
-| `npm run generate:openapi-types` | Regenerate `src/openapi.d.ts` from `openapi3.yaml`. Run after any OpenAPI change. |
+| `npm run build` | Clean, regenerate `openapi3.yaml` and the OpenAPI types, compile to `dist/`, copy assets |
+| `npm run generate:openapi` | Regenerate `openapi3.yaml` from the Zod schemas ([OpenAPI contract](#openapi-contract)). Run after any schema or route-documentation change. |
+| `npm run generate:openapi:check` | Fail if the committed `openapi3.yaml` is out of date |
+| `npm run generate:openapi-types` | Regenerate `src/openapi.d.ts` from `openapi3.yaml`. Run after `generate:openapi`. |
 | `npm run lint` / `lint:fix` | ESLint (runs Prettier check/fix first) |
 | `npm run format` / `format:fix` | Prettier check / write |
 | `npm run lint:openapi` | Lint `openapi3.yaml` with Redocly |
@@ -222,7 +225,7 @@ Liveness: `GET /liveness` (served at the root, outside `/basemaps`).
 
 ### Write rules
 
-- `name` non-empty; `thumbnail.url` non-empty; `opacity` between 0 and 1; `order` integer >= 0.
+- `name` non-empty; `thumbnail.url` an absolute `http(s)` URL (as returned by the `catalog-web-app-bff` upload) or a `data:image/png|webp;base64,...` URL - relative URLs, other schemes and malformed URLs are rejected (rule owned by `@map-colonies/app-shared`); `opacity` between 0 and 1; `order` integer >= 0.
 - Layer `id` and `order` must each be unique within a Basemap.
 - Catalog layers need a non-empty `uniqueness.productId` and a known `productType` (`Orthophoto`, `OrthophotoHistory`, `OrthophotoBest`, `RasterMap`, `RasterMapBest`, `RasterAid`, `RasterAidBest`, `RasterVector`, `RasterVectorBest`).
 - External layers need `protocol` (`XYZ`, `WMTS`, `WMS`, `OSM`), `name` and `url`.
@@ -385,8 +388,27 @@ BASEMAP_MOCK_DATA=true npm run start:dev   # rasterCatalog/mapServer/accessToken
 ## Development notes
 
 - Dependency injection via `tsyringe`; clients are bound to interface tokens in [src/containerConfig.ts](src/containerConfig.ts), which is the place to swap a stub for a real client.
-- `src/openapi.d.ts` is generated. Edit `openapi3.yaml`, then run `npm run generate:openapi-types` (also done by `npm run build`).
+- `openapi3.yaml` and `src/openapi.d.ts` are generated - never edit them by hand. See [OpenAPI contract](#openapi-contract).
 - Domain errors extend `AppHttpError` ([src/common/errors.ts](src/common/errors.ts)) and are translated to HTTP responses by `@map-colonies/error-express-handler`. Logging uses `@map-colonies/js-logger`; metrics are collected by `@map-colonies/prometheus`; tracing is initialised in `src/instrumentation.mts` before the app starts.
+
+### OpenAPI contract
+
+The Zod schemas are the single source of truth; `openapi3.yaml` is generated from them and committed.
+
+- Request/persisted shapes come from `@map-colonies/app-shared` (the same schemas the service validates with); the capability from `@map-colonies/wmts-client`; the import review from `src/basemaps/models/importReview.schema.ts`.
+- [openapi/document.cts](openapi/document.cts) registers those schemas and the seven operations with `@asteasolutions/zod-to-openapi` (public API only) and renders the document. It is CommonJS TypeScript run by plain Node 24 (native type stripping), matching the CommonJS build of zod that app-shared uses.
+- Reusable `$ref` components: `registry.register()` returns a *named copy* of a schema, while app-shared's compositions nest the un-named originals. At each composition joint the generator re-composes with `.extend()` / `z.discriminatedUnion()`, replacing only the nested field with its named copy. No validation rule is restated.
+- Equivalence guard: before writing, every composed schema is rendered and compared - `$ref`s resolved, documentation keywords ignored - with the app-shared schema it stands for. Any difference (required fields, types, enums, bounds, patterns, nested schemas, union branches) aborts generation with the JSON pointer of the first difference. If app-shared changes shape, update the composition in `openapi/document.cts`.
+- OpenAPI 3.0.1 is kept (`jest-openapi` does not support 3.1). zod-to-openapi renders `z.null()` as a type-less `{ nullable: true }`, which Ajv rejects; the generator rewrites exactly that shape to `{ type: object, nullable: true, enum: [null] }`.
+- `express-openapi-validator` still validates requests against the generated file (multipart upload, path parameters, unknown routes/methods, early shape rejection). The service's own Zod validation and business rules remain authoritative for what OpenAPI cannot express (e.g. whitespace-only names, the external-layer protocol list, duplicate layer ids and orders).
+
+Workflow after changing a schema (in app-shared or here) or an operation's documentation:
+
+```bash
+npm run generate:openapi && npm run generate:openapi-types
+```
+
+CI regenerates both files and fails if either differs from the committed version.
 
 Troubleshooting:
 
