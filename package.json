@@ -46,7 +46,7 @@
     "@map-colonies/js-logger": "^5.0.0",
     "@map-colonies/mc-model-types": "^19.2.3",
     "@map-colonies/openapi-express-viewer": "^5.0.0",
-    "@map-colonies/prometheus": "^1.0.0",
+    "@map-colonies/prometheus": "^2.0.0",
     "@map-colonies/read-pkg": "^2.0.0",
     "@map-colonies/schemas": "^1.26.0",
     "@map-colonies/tracing": "^1.0.0",
