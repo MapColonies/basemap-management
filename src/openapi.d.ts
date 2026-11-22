@@ -176,7 +176,6 @@ export type components = {
       id: string;
       order: number;
       opacity: number;
-      /** @description Only meaningful for layer sources eligible for 3D model draping. Omitted entirely for ineligible sources - never sent as false/disabled. */
       shouldBeUsedInModelDraping?: boolean;
       source:
         | {
@@ -184,7 +183,7 @@ export type components = {
             type: 'CATALOG_RESOURCE';
             /** @enum {string} */
             domain: 'RASTER';
-            /** @description Identifies a raster catalog product by productId + productType. It is also the persisted, portable identity of a catalog layer - there is no environment-specific id. Both fields are optional. */
+            /** @description Identifies a raster catalog product by productId + productType */
             uniqueness: {
               /** @description Raster catalog product id */
               productId?: string | null;
@@ -206,7 +205,7 @@ export type components = {
             type: 'CATALOG_RESOURCE';
             /** @enum {string} */
             domain: 'RASTER';
-            /** @description Identifies a raster catalog product by productId + productType. It is also the persisted, portable identity of a catalog layer - there is no environment-specific id. Both fields are optional. */
+            /** @description Identifies a raster catalog product by productId + productType */
             uniqueness: {
               /** @description Raster catalog product id */
               productId?: string | null;
@@ -223,7 +222,6 @@ export type components = {
         | {
             /** @enum {string} */
             type: 'EXTERNAL';
-            /** @description Configuration for an externally-served layer. Provider-specific keys besides protocol, name and url are kept as-is. */
             details: {
               /** @description Serving protocol of an external layer */
               protocol: string;
