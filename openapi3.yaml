@@ -257,6 +257,7 @@ components:
           maximum: 1
         shouldBeUsedInModelDraping:
           type: boolean
+          description: Only meaningful for layer sources eligible for 3D model draping. Omitted entirely for ineligible sources - never sent as false/disabled.
         source:
           anyOf:
             - type: object
@@ -280,7 +281,7 @@ components:
                       type: string
                       nullable: true
                       description: Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)
-                  description: Identifies a raster catalog product by productId + productType
+                  description: Identifies a raster catalog product by productId + productType. It is also the persisted, portable identity of a catalog layer - there is no environment-specific id. Both fields are optional.
                 status:
                   type: string
                   enum:
@@ -326,7 +327,7 @@ components:
                       type: string
                       nullable: true
                       description: Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)
-                  description: Identifies a raster catalog product by productId + productType
+                  description: Identifies a raster catalog product by productId + productType. It is also the persisted, portable identity of a catalog layer - there is no environment-specific id. Both fields are optional.
                 status:
                   type: string
                   enum:
@@ -368,6 +369,7 @@ components:
                     - protocol
                     - name
                     - url
+                  description: Configuration for an externally-served layer. Provider-specific keys besides protocol, name and url are kept as-is.
                 status:
                   type: string
                   enum:
