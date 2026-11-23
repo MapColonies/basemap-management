@@ -29,6 +29,8 @@ import { MOCK_CATALOG_PRODUCT, MOCK_PERSISTED_BASEMAPS } from '@src/basemaps/moc
 
 const BASEMAP_RESPONSE_SCHEMA = createBasemapSchema(LayerRasterRecordSchema, CapabilityWMTSSchema);
 const UNRESOLVED_LAYER_ID = 'layer-14-04';
+const CURRENT_UNRESOLVED_DRAPING_LAYER_ID = 'layer-01-03';
+const UNRESOLVED_LAYER_IDS = [CURRENT_UNRESOLVED_DRAPING_LAYER_ID, UNRESOLVED_LAYER_ID];
 const WMTS_CAPABILITIES_PATH = '/wmts/1.0.0/WMTSCapabilities.xml';
 const MOCK_RECORD_ID = 'mock-catalog-record-id';
 const MOCK_WMTS_LAYER_ID = `${MOCK_CATALOG_PRODUCT.productId}-${MOCK_CATALOG_PRODUCT.productType}`;
@@ -201,11 +203,15 @@ describe('BASEMAP_MOCK_DATA', () => {
       }
 
       const layers = catalogLayers(basemaps);
-      const unresolved = layers.filter((layer) => layer.id === UNRESOLVED_LAYER_ID);
-      const resolved = layers.filter((layer) => layer.id !== UNRESOLVED_LAYER_ID);
+      const unresolved = layers.filter((layer) => UNRESOLVED_LAYER_IDS.includes(layer.id));
+      const resolved = layers.filter((layer) => !UNRESOLVED_LAYER_IDS.includes(layer.id));
 
-      expect(unresolved).toHaveLength(1);
-      expect(unresolved[0]?.source).toMatchObject({ status: Status.UNRESOLVED, layer: null, capabilities: null });
+      expect(unresolved.map((layer) => layer.id)).toEqual(UNRESOLVED_LAYER_IDS);
+
+      for (const layer of unresolved) {
+        expect(layer.source).toMatchObject({ status: Status.UNRESOLVED, layer: null, capabilities: null });
+      }
+
       expect(resolved.length).toBeGreaterThan(0);
 
       for (const layer of resolved) {
@@ -283,6 +289,26 @@ describe('BASEMAP_MOCK_DATA', () => {
       for (const layer of catalogLayers(response.body as Basemap[])) {
         expect(layer.source).toMatchObject({ status: Status.UNRESOLVED, layer: null, capabilities: null });
       }
+    });
+
+    it('should serve the current basemap with an UNRESOLVED catalog layer that keeps its draping flag', async () => {
+      const response = await requestSender.getBasemap({ pathParams: { basemapId: 'basemap-01' } });
+
+      expect(response.status).toBe(httpStatusCodes.OK);
+      expect(response).toSatisfyApiSpec();
+
+      const basemap = response.body as Basemap;
+
+      expect(basemap.isCurrent).toBe(true);
+      expect(basemap.layers.map((layer) => [layer.id, layer.source.status])).toEqual([
+        ['layer-01-01', Status.RESOLVED],
+        ['layer-01-02', Status.RESOLVED],
+        [CURRENT_UNRESOLVED_DRAPING_LAYER_ID, Status.UNRESOLVED],
+      ]);
+      expect(basemap.layers[2]).toMatchObject({
+        shouldBeUsedInModelDraping: true,
+        source: { type: 'CATALOG_RESOURCE', status: Status.UNRESOLVED, layer: null, capabilities: null },
+      });
     });
 
     it('gets a single fixture basemap', async () => {
