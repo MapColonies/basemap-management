@@ -33,7 +33,7 @@ function messageFor(layer: BasemapLayerInput | undefined, issue: { path: (string
   return `layer "${layer.id}" ${fieldPath}: ${issue.message}`;
 }
 
-export function validateBasemapWriteInput(input: BasemapWriteInput): void {
+export function validateBasemapWriteInput(input: BasemapWriteInput): BasemapWriteInput {
   const result = BasemapWriteInputSchema.safeParse(input);
   if (!result.success) {
     const [issue] = result.error.issues;
@@ -45,5 +45,6 @@ export function validateBasemapWriteInput(input: BasemapWriteInput): void {
     throw new ValidationError(messageFor(layer, issue));
   }
 
-  validateBusinessRules(input);
+  validateBusinessRules(result.data);
+  return result.data;
 }

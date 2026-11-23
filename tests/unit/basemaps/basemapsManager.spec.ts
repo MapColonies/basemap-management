@@ -109,6 +109,36 @@ describe('BasemapsManager', () => {
 
       expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }]);
     });
+
+    const withUnknownKeys = (): BasemapWriteInput =>
+      ({
+        ...writeInput({ layers: [{ ...external, extraLayerKey: 1 } as BasemapLayerInput] }),
+        extraBasemapKey: 'x',
+        thumbnail: { url: 'https://example.com/thumb.png', width: 128, height: 128, extraThumbnailKey: true },
+      }) as BasemapWriteInput;
+    const STORED_KEYS = ['id', 'isCurrent', 'isForPreview', 'layers', 'name', 'thumbnail'];
+
+    it('should drop unknown request keys on create', async () => {
+      await manager.create(withUnknownKeys());
+
+      const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
+
+      expect(Object.keys(stored ?? {}).sort()).toEqual(STORED_KEYS);
+      expect(stored?.thumbnail).toEqual({ url: 'https://example.com/thumb.png', width: 128, height: 128 });
+      expect(stored?.layers).toEqual([{ ...external }]);
+    });
+
+    it('should drop unknown request keys on update', async () => {
+      const created = await manager.create(writeInput());
+
+      await manager.update(created.id, withUnknownKeys());
+
+      const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
+
+      expect(Object.keys(stored ?? {}).sort()).toEqual(STORED_KEYS);
+      expect(stored?.thumbnail).toEqual({ url: 'https://example.com/thumb.png', width: 128, height: 128 });
+      expect(stored?.layers).toEqual([{ ...external }]);
+    });
   });
 
   describe('#update', () => {

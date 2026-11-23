@@ -96,6 +96,7 @@ Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/
 | `npm start` | Build and run |
 | `npm run build` | Clean, regenerate OpenAPI types, compile to `dist/`, copy assets |
 | `npm run generate:openapi-types` | Regenerate `src/openapi.d.ts` from `openapi3.yaml`. Run after any OpenAPI change. |
+| `npm run generate:config-server-schema` | Regenerate the config-server JSON Schema `scripts/v1.schema.json` from the Zod schemas, see [Config-server schema](#config-server-schema) |
 | `npm run lint` / `lint:fix` | ESLint (runs Prettier check/fix first) |
 | `npm run format` / `format:fix` | Prettier check / write |
 | `npm run lint:openapi` | Lint `openapi3.yaml` with Redocly |
@@ -123,7 +124,7 @@ Read in [src/common/env.ts](src/common/env.ts) from the `@map-colonies/config` i
 | --- | --- | --- | --- |
 | `configServer.url` | `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
 | `configServer.configName` | `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
-| `configServer.schemaId` | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
+| `configServer.schemaId` | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/common/basemaps/v1` | config-server `schemaId` for that document, defined in `@map-colonies/schemas` (see [Config-server schema](#config-server-schema)). |
 | `mapServer.url` | `MAP_SERVER_URL` | integration MapProxy (`''` in production/test) | Raster MapProxy base URL. `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present; an existing query string is kept. If empty or unreachable, catalog layers come back `UNRESOLVED`. |
 | `mapServer.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `mapServices.raster.exposureType`. The token is only sent to a `ROUTE`. |
 | `rasterCatalog.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `csw.raster.exposureType`. The token is only sent to a `ROUTE`. |
@@ -300,7 +301,19 @@ interface BasemapLayerBase {
 
 ### Persistence and concurrency
 
-Each write reads the latest document, applies the change, checks the role invariant, and POSTs the next version (`previous + 1`, or `1` for a new document). A `404` from config-server on read is treated as an empty list. Writes within one process are serialized by an in-memory queue. There is no cross-replica lock: concurrent writes from different replicas rely on config-server rejecting a stale version (a non-2xx reply becomes a `502`; this behaviour of config-server is not verified here). Treat the Helm default of one replica as the safe setting.
+Each write reads the latest document, applies the change, checks the role invariant, and POSTs it with the version it was read at (`1` for a new document); config-server stores it as the next version and rejects a stale base version with `409`. A `404` from config-server on read is treated as an empty list. Writes within one process are serialized by an in-memory queue. There is no cross-replica lock: concurrent writes from different replicas rely on that `409` (any non-2xx reply becomes a `502`). Treat the Helm default of one replica as the safe setting.
+
+### Config-server schema
+
+config-server validates every write against the JSON Schema registered for `configServer.schemaId` in the [`@map-colonies/schemas`](https://github.com/MapColonies/schemas) package it has installed (`https://mapcolonies.com/common/basemaps/v1` = `schemas/common/basemaps/v1.schema.json` there). The schema describes the stored document above - `{ "basemaps": PersistedBasemap[] }`, the `config` field of the config-server request, not the request envelope.
+
+This service owns the schema: `npm run generate:config-server-schema` (`scripts/generateConfigServerSchema.mts`) converts the `@map-colonies/app-shared` Zod schemas (`PersistedBasemapSchema`) with [`zod-to-json-schema`](https://github.com/StefanTerdell/zod-to-json-schema) (draft 2019-09, fully inlined) and writes `scripts/v1.schema.json`, which is committed. A unit test (`tests/unit/scripts/generateConfigServerSchema.spec.ts`) fails when the committed file no longer matches the Zod schemas, when its `$id` differs from `configServer.schemaId` in `config/default.json` / `helm/values.yaml`, or when config-server's validator (Ajv, draft 2019-09, same options) would accept or reject a fixture differently from what is described below.
+
+- **Unknown keys:** every object is closed (`additionalProperties: false`) except an external layer's `details`, which is `.passthrough()` in Zod and keeps provider-specific keys (`additionalProperties: true`). Zod's default objects _strip_ unknown keys rather than reject them, so the schema is stricter than Zod's input check but matches what this service stores: writes persist Zod's parsed output (`validateBasemapWriteInput`), never the raw request body.
+
+- **Publish a change:** copy the generated file unchanged to `schemas/common/basemaps/v1.schema.json` in the `schemas` repository, run `npm run validate` there and release it; config-server picks it up when it is upgraded to that `@map-colonies/schemas` version.
+- **Versioning:** a released schema file must not change (the `schemas` repository enforces this). If the persisted model changes after `v1` is released, bump the version in `configServer.schemaId` (`config/default.json`, which the generator reads for `$id`; `title` comes from `configServer.configName`) and `helm/values.yaml`, rename the output file in `scripts/generateConfigServerSchema.mts`, and add the new file to `schemas`. config-server keeps configs per `schemaId`: the `basemaps` document stored under `v1` is not returned for `v2`, so the switch needs a migration step (write the current document, converted, as version 1 under the new `schemaId`). A config name cannot move to a schema with a different path, only to a new version of the same one.
+- **Not in the schema:** rules JSON Schema cannot express - Zod refinements (non-blank `name`, `thumbnail.url`, external `details.name` / `details.url`) and the write rules (unique layer ids and orders, a single owner per role, unique basemap ids). They are enforced only by this service; a document written directly to config-server that breaks them is accepted there, and the affected basemaps are skipped on read (see above).
 
 ## Testing
 

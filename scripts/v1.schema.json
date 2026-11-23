@@ -1,0 +1,87 @@
+{
+  "$id": "https://mapcolonies.com/common/basemaps/v1",
+  "title": "basemaps",
+  "description": "Generated from the @map-colonies/app-shared Zod schemas by basemap-management - do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "basemaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "thumbnail": {
+            "type": "object",
+            "properties": { "url": { "type": "string" }, "width": { "type": "number", "const": 128 }, "height": { "type": "number", "const": 128 } },
+            "required": ["url", "width", "height"],
+            "additionalProperties": false
+          },
+          "isCurrent": { "type": "boolean" },
+          "isForPreview": { "type": "boolean" },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "order": { "type": "integer", "minimum": 0 },
+                "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                "shouldBeUsedInModelDraping": { "type": "boolean" },
+                "source": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "const": "CATALOG_RESOURCE" },
+                        "domain": { "type": "string", "const": "RASTER" },
+                        "uniqueness": {
+                          "type": "object",
+                          "properties": {
+                            "productId": { "type": ["string", "null"], "description": "Raster catalog product id" },
+                            "productType": {
+                              "type": ["string", "null"],
+                              "description": "Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Identifies a raster catalog product by productId + productType"
+                        }
+                      },
+                      "required": ["type", "domain", "uniqueness"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "const": "EXTERNAL" },
+                        "details": {
+                          "type": "object",
+                          "properties": {
+                            "protocol": { "type": "string", "description": "Serving protocol of an external layer" },
+                            "name": { "type": "string" },
+                            "url": { "type": "string" }
+                          },
+                          "required": ["protocol", "name", "url"],
+                          "additionalProperties": true
+                        }
+                      },
+                      "required": ["type", "details"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": ["id", "order", "opacity", "source"],
+              "additionalProperties": false
+            }
+          },
+          "id": { "type": "string" }
+        },
+        "required": ["name", "thumbnail", "isCurrent", "isForPreview", "layers", "id"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["basemaps"],
+  "additionalProperties": false
+}

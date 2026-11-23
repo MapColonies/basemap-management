@@ -134,8 +134,8 @@ configManagement:
 
 basemapManagement:
   configServer:
-    name: 'basemaps'
-    schemaId: 'https://mapcolonies.com/basemaps/v1'
+    name: basemaps
+    schemaId: 'https://mapcolonies.com/common/basemaps/v1'
   rasterCatalog:
     url: ''
   mapServer:

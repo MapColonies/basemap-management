@@ -8,6 +8,7 @@ import type { IConfigServerClient, IConfigServerDocument, IConfigServerDocumentW
 const HTTP_NOT_FOUND = 404;
 const API_CONFIG_PATH = '/api/config';
 const LATEST_VERSION = 'latest';
+const FIRST_VERSION = 1;
 
 function parseConfigServerReadResponse(body: unknown, configName: string): IConfigServerDocumentWithVersion {
   if (typeof body !== 'object' || body === null) {
@@ -70,8 +71,8 @@ export class HttpConfigServerClient implements IConfigServerClient {
   }
 
   public async save(document: IConfigServerDocument, baseVersion: number | undefined): Promise<{ version: number }> {
-    const firstVersion = 1;
-    const nextVersion = baseVersion === undefined ? firstVersion : baseVersion + 1;
+    const requestVersion = baseVersion ?? FIRST_VERSION;
+    const nextVersion = baseVersion === undefined ? FIRST_VERSION : baseVersion + 1;
 
     const response = await fetch(`${this.baseUrl}${API_CONFIG_PATH}`, {
       method: 'POST',
@@ -79,7 +80,7 @@ export class HttpConfigServerClient implements IConfigServerClient {
       body: JSON.stringify({
         configName: this.configName,
         schemaId: this.schemaId,
-        version: nextVersion,
+        version: requestVersion,
         config: document,
       }),
     }).catch((error: unknown) => {

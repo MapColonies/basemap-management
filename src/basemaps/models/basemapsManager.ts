@@ -37,8 +37,8 @@ class BasemapsManager {
     return this.toOutput(await this.getPersistedById(id));
   }
 
-  public async create(input: BasemapWriteInput): Promise<Basemap> {
-    validateBasemapWriteInput(input);
+  public async create(rawInput: BasemapWriteInput): Promise<Basemap> {
+    const input = validateBasemapWriteInput(rawInput);
 
     const created = await this.mutate((basemaps) => {
       const id = randomUUID();
@@ -57,8 +57,8 @@ class BasemapsManager {
     return this.toOutput(created);
   }
 
-  public async update(id: string, input: BasemapWriteInput): Promise<Basemap> {
-    validateBasemapWriteInput(input);
+  public async update(id: string, rawInput: BasemapWriteInput): Promise<Basemap> {
+    const input = validateBasemapWriteInput(rawInput);
 
     const updated = await this.mutate((basemaps) => {
       if (!basemaps.some((candidate) => candidate.id === id)) {

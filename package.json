@@ -29,7 +29,8 @@
     "helm-update": "helm dependency update helm",
     "helm-assets": "npm run helm-update && tar -xzvf ./helm/charts/helm-common*.tgz --strip-components=1 helm-common/schemas",
     "helm-install": "npm run helm-update && helm install -f 'helm/global.yaml' -f 'helm/values.yaml' basemap-management helm",
-    "helm-uninstall": "helm uninstall basemap-management"
+    "helm-uninstall": "helm uninstall basemap-management",
+    "generate:config-server-schema": "node scripts/generateConfigServerSchema.mts"
   },
   "directories": {
     "test": "tests"
@@ -88,6 +89,8 @@
     "@vitest/coverage-v8": "^4.1.10",
     "@vitest/eslint-plugin": "1.6.27",
     "@vitest/ui": "^4.1.8",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "copyfiles": "^2.4.1",
     "cross-env": "^10.1.0",
     "eslint": "^10.12.0",
@@ -100,6 +103,7 @@
     "supertest": "^7.2.2",
     "tsc-alias": "^1.9.7",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "zod-to-json-schema": "^3.25.2"
   }
 }

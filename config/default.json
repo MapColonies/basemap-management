@@ -36,7 +36,7 @@
   "configServer": {
     "url": "http://config-server",
     "configName": "basemaps",
-    "schemaId": "https://mapcolonies.com/basemaps/v1"
+    "schemaId": "https://mapcolonies.com/common/basemaps/v1"
   },
   "rasterCatalog": {
     "url": "http://raster-catalog",
