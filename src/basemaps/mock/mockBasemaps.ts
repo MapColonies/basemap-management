@@ -44,6 +44,7 @@ const MOCK_PERSISTED_BASEMAPS: PersistedBasemap[] = [
         },
       },
       { id: 'layer-01-02', order: 1, opacity: 1, shouldBeUsedInModelDraping: true, source: CATALOG_SOURCE },
+      { id: 'layer-01-03', order: 2, opacity: 1, shouldBeUsedInModelDraping: true, source: UNKNOWN_CATALOG_SOURCE },
     ],
   },
   {
