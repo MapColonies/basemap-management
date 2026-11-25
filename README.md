@@ -371,14 +371,16 @@ npm run helm-uninstall
 
 | Value | Maps to | Notes |
 | --- | --- | --- |
-| `global.configManagment.url` | `CONFIG_MANAGEMENT_URL` | Origin only, no `/api/config`. The key is spelled `configManagment` in the chart. |
-| `configManagement.{name,version,offlineMode,serverUrl}` | `CONFIG_NAME`, `CONFIG_VERSION`, `CONFIG_OFFLINE_MODE`, `CONFIG_SERVER_URL` | `@map-colonies/config` bootstrap. |
-| `basemapManagement.configServer.{name,schemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
-| `basemapManagement.mapServer.url` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
-| `basemapManagement.rasterCatalog.url` | `RASTER_CATALOG_URL` | Set to the Raster PyCSW endpoint to resolve real catalog layers; empty or unreachable leaves them unresolved. |
-| `basemapManagement.uploadLimits.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
-| `env.*` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
-| `telemetry.logger.opentelemetryOptions` | `OPENTELEMETRY_LOGGING_ENABLED`, `OTLP_LOGGER_ENDPOINT_URL` | |
+| `global.configManagment.url` | `CONFIG_MANAGEMENT_URL`, `CONFIG_SERVER_URL` (`<url>/api`) | Origin only, no `/api/config`. The key is spelled `configManagment` in the chart. |
+| `env.accessToken.{attributeName,injectionType,tokenValue}` | `ACCESS_TOKEN_ATTRIBUTE_NAME`, `ACCESS_TOKEN_INJECTION_TYPE`, `ACCESS_TOKEN_TOKEN_VALUE` | Defined locally. |
+| `env.{configName,configVersion,configOfflineMode}` | `CONFIG_NAME`, `CONFIG_VERSION`, `CONFIG_OFFLINE_MODE` | `@map-colonies/config` bootstrap. |
+| `env.{basemapsConfigName,basemapsConfigSchemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
+| `env.mapServerUrl` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
+| `env.rasterCatalogUrl` | `RASTER_CATALOG_URL` | Set to the Raster PyCSW endpoint to resolve real catalog layers; empty or unreachable leaves them unresolved. |
+| `env.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
+| `env.{requestPayloadLimit,responseCompressionEnabled}` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
+| `env.{logLevel,logPrettyPrintEnabled}` | `LOG_LEVEL`, `LOG_PRETTY_PRINT_ENABLED` | Rendered by `helm-common`. |
+| `env.{opentelemetryLoggingEnabled,otlpLoggerEndpointUrl}` | `OPENTELEMETRY_LOGGING_ENABLED`, `OTLP_LOGGER_ENDPOINT_URL` | |
 
 Chart defaults: 1 replica, container port 8080, service port 80, OpenShift route enabled, ingress disabled (`/basemap-management` path if enabled), liveness/readiness probes on, 100m CPU / 128Mi memory. The placeholder `<CONFIG_MANAGEMENT_URL>` in `global.yaml` must be replaced.
 

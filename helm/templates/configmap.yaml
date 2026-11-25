@@ -9,26 +9,24 @@
   RESPONSE_COMPRESSION_ENABLED: {{ .Values.env.responseCompressionEnabled | quote }}
 {{- end }}
   CONFIG_MANAGEMENT_URL: {{ $CONFIG_MANAGER_OBJECT.url | quote }}
-  {{- with .Values.configManagement }}
-  CONFIG_NAME: {{ .name | quote }}
-  CONFIG_VERSION: {{ .version | quote }}
-  CONFIG_OFFLINE_MODE: {{ .offlineMode | quote }}
-  CONFIG_SERVER_URL: {{ .serverUrl | quote }}
+  {{- /* `@map-colonies/config` requests `<CONFIG_SERVER_URL>/config/...`, served by the same config manager under `/api`. */}}
+  CONFIG_SERVER_URL: {{ printf "%s/api" (trimSuffix "/" $CONFIG_MANAGER_OBJECT.url) | quote }}
+  CONFIG_NAME: {{ quote .Values.env.configName }}
+  CONFIG_VERSION: {{ quote .Values.env.configVersion }}
+  CONFIG_OFFLINE_MODE: {{ quote .Values.env.configOfflineMode }}
+  ACCESS_TOKEN_ATTRIBUTE_NAME: {{ quote .Values.env.accessToken.attributeName }}
+  ACCESS_TOKEN_INJECTION_TYPE: {{ quote .Values.env.accessToken.injectionType }}
+  ACCESS_TOKEN_TOKEN_VALUE: {{ quote .Values.env.accessToken.tokenValue }}
+  OPENTELEMETRY_LOGGING_ENABLED: {{ quote .Values.env.opentelemetryLoggingEnabled }}
+  {{- if .Values.env.opentelemetryLoggingEnabled }}
+  OTLP_LOGGER_ENDPOINT_URL: {{ quote .Values.env.otlpLoggerEndpointUrl }}
   {{- end }}
-  {{- with .Values.telemetry.logger.opentelemetryOptions }}
-  OPENTELEMETRY_LOGGING_ENABLED: {{ .enabled | quote }}
-  {{- if .enabled }}
-  OTLP_LOGGER_ENDPOINT_URL: {{ .url | quote }}
-  {{- end }}
-  {{- end }}
-  {{- with .Values.basemapManagement }}
-  CONFIG_BASEMAPS_NAME: {{ .configServer.name | quote }}
-  CONFIG_BASEMAPS_SCHEMA_ID: {{ .configServer.schemaId | quote }}
-  RASTER_CATALOG_URL: {{ .rasterCatalog.url | quote }}
-  MAP_SERVER_URL: {{ .mapServer.url | quote }}
+  CONFIG_BASEMAPS_NAME: {{ quote .Values.env.basemapsConfigName }}
+  CONFIG_BASEMAPS_SCHEMA_ID: {{ quote .Values.env.basemapsConfigSchemaId }}
+  RASTER_CATALOG_URL: {{ quote .Values.env.rasterCatalogUrl }}
+  MAP_SERVER_URL: {{ quote .Values.env.mapServerUrl }}
   {{/* `quote` on a bare numeric value renders large numbers in scientific notation (e.g. "2.097152e+06") - `int64` first keeps it a plain integer string. */}}
-  IMPORT_PACKAGE_MAX_SIZE_BYTES: {{ .uploadLimits.importPackageMaxSizeBytes | int64 | quote }}
-  {{- end -}}
+  IMPORT_PACKAGE_MAX_SIZE_BYTES: {{ .Values.env.importPackageMaxSizeBytes | int64 | quote }}
 {{- end -}}
 
 {{ include "mc-chart.configmap" (dict "MAIN_OBJECT_BLOCK" $MAIN_OBJECT_BLOCK "COMPONENT_NAME" $COMPONENT_NAME "DATA" $DATA "WITH_TELEMETRY_TRACING" true "WITH_TELEMETRY_METRICS" false "context" .)}}

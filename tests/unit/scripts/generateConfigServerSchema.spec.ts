@@ -303,12 +303,12 @@ describe('basemaps config JSON Schema (config-server)', () => {
     it('should be the schemaId basemap-management sends to config-server, in config and in the Helm chart', () => {
       const defaultConfig = JSON.parse(readFileSync(path.join(ROOT, 'config', 'default.json'), 'utf8')) as { configServer: { schemaId: string } };
       const helmValues = load(readFileSync(path.join(ROOT, 'helm', 'values.yaml'), 'utf8')) as {
-        basemapManagement: { configServer: { schemaId: string } };
+        env: { basemapsConfigSchemaId: string };
       };
 
       expect(committedSchema.$id).toBe(SCHEMA_ID);
       expect(defaultConfig.configServer.schemaId).toBe(SCHEMA_ID);
-      expect(helmValues.basemapManagement.configServer.schemaId).toBe(SCHEMA_ID);
+      expect(helmValues.env.basemapsConfigSchemaId).toBe(SCHEMA_ID);
     });
 
     it('should name the committed file like the schemas repository file (<version>.schema.json)', () => {
