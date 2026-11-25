@@ -77,13 +77,20 @@ env:
   logPrettyPrintEnabled: false
   responseCompressionEnabled: true
   requestPayloadLimit: 1mb
-
-telemetry:
-  logger:
-    opentelemetryOptions:
-      enabled: true
-      url: http://localhost:4317
-
+  configName: basemap-management
+  configVersion: latest
+  configOfflineMode: false
+  opentelemetryLoggingEnabled: true
+  otlpLoggerEndpointUrl: http://localhost:4317
+  basemapsConfigName: basemaps
+  basemapsConfigSchemaId: https://mapcolonies.com/common/basemaps/v1
+  rasterCatalogUrl: ''
+  mapServerUrl: ''
+  accessToken:
+    attributeName: token
+    injectionType: queryParam
+    tokenValue: ''
+  importPackageMaxSizeBytes: 10485760 # 10MB - generous for a tiny JSON doc + one 128x128 image
 route:
   enabled: true
   annotations:
@@ -125,20 +132,3 @@ service:
   protocol: TCP
 serviceAccount:
   create: false
-
-configManagement:
-  offlineMode: false
-  name: 'basemap-management'
-  version: 'latest'
-  serverUrl: 'http://localhost:8080/api'
-
-basemapManagement:
-  configServer:
-    name: 'basemaps'
-    schemaId: 'https://mapcolonies.com/basemaps/v1'
-  rasterCatalog:
-    url: ''
-  mapServer:
-    url: ''
-  uploadLimits:
-    importPackageMaxSizeBytes: 10485760 # 10MB - generous for a tiny JSON doc + one 128x128 image

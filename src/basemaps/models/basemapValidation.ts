@@ -1,22 +1,16 @@
 import { SourceType, BasemapWriteInputSchema } from '@map-colonies/app-shared';
 import { ValidationError } from '@common/errors';
+import { findLayerConflicts } from './basemapInvariants';
 import { PROTOCOLS } from './types';
 import type { BasemapLayerInput, BasemapWriteInput } from './types';
 
 function validateBusinessRules(input: BasemapWriteInput): void {
-  const seenIds = new Set<string>();
-  const seenOrders = new Set<number>();
+  const layerConflicts = findLayerConflicts(input.layers);
+  if (layerConflicts.length > 0) {
+    throw new ValidationError(layerConflicts.join('; '));
+  }
+
   for (const layer of input.layers) {
-    if (seenIds.has(layer.id)) {
-      throw new ValidationError(`duplicate layer id "${layer.id}"`);
-    }
-    seenIds.add(layer.id);
-
-    if (seenOrders.has(layer.order)) {
-      throw new ValidationError(`duplicate layer order "${layer.order}"`);
-    }
-    seenOrders.add(layer.order);
-
     if (layer.source.type === SourceType.EXTERNAL && !PROTOCOLS.includes(layer.source.details.protocol)) {
       throw new ValidationError(`layer "${layer.id}" has an unknown protocol "${layer.source.details.protocol}"`);
     }
@@ -33,7 +27,7 @@ function messageFor(layer: BasemapLayerInput | undefined, issue: { path: (string
   return `layer "${layer.id}" ${fieldPath}: ${issue.message}`;
 }
 
-export function validateBasemapWriteInput(input: BasemapWriteInput): void {
+export function validateBasemapWriteInput(input: BasemapWriteInput): BasemapWriteInput {
   const result = BasemapWriteInputSchema.safeParse(input);
   if (!result.success) {
     const [issue] = result.error.issues;
@@ -45,5 +39,6 @@ export function validateBasemapWriteInput(input: BasemapWriteInput): void {
     throw new ValidationError(messageFor(layer, issue));
   }
 
-  validateBusinessRules(input);
+  validateBusinessRules(result.data);
+  return result.data;
 }

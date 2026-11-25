@@ -128,13 +128,15 @@ describe('validateBasemapWriteInput', () => {
     const input = baseInput();
     input.layers[1] = { ...layerAt(input, 1), id: layerAt(input, 0).id };
 
-    expect(() => validateBasemapWriteInput(input)).toThrow(/duplicate layer id/);
+    expect(() => validateBasemapWriteInput(input)).toThrow(`duplicate layer id "${layerAt(input, 0).id}" (layers at positions 0, 1)`);
   });
 
   it('rejects duplicate layer orders', () => {
     const input = baseInput();
     input.layers[1] = { ...layerAt(input, 1), order: layerAt(input, 0).order };
 
-    expect(() => validateBasemapWriteInput(input)).toThrow(/duplicate layer order/);
+    expect(() => validateBasemapWriteInput(input)).toThrow(
+      `duplicate layer order ${layerAt(input, 0).order} (layers "${layerAt(input, 0).id}", "${layerAt(input, 1).id}")`
+    );
   });
 });

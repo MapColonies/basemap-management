@@ -7,77 +7,122 @@
  * Usage:
  *   node scripts/generateConfigServerSchema.js [--output <schema.json>] [--schema-id <uri>]
  *
- * --output defaults to schemas/v1.schema.json (relative to the repo root).
- * --schema-id defaults to this schema's `$id` in the `@map-colonies/schemas` repo.
+ * --output (-o) defaults to schemas/v1.schema.json in this repository, wherever the script is run from;
+ *   an explicit relative path is resolved against the current working directory.
+ * --schema-id defaults to configServer.schemaId in config/default.json (the title is configServer.configName).
+ * Both options also accept the --option=value form.
  *
- * On top of the zod-derived shape, the generated schema also adds cross-item uniqueness rules that
+ * The output is formatted with this repository's Prettier configuration, so it can be copied as is
+ * to schemas/common/basemaps/v1.schema.json in the @map-colonies/schemas repository.
+ *
+ * On top of the zod-derived shape, the generated schema also adds cross-item rules that
  * zod/zod-to-json-schema can't express on their own:
- *   - at most one basemap may have isCurrent: true
- *   - at most one basemap may have isForPreview: true
- *   - within a basemap, layers[].order must be unique (via the ajv-keywords `uniqueItemProperties`
- *     keyword - only enforced if ajv-keywords is registered wherever this schema is validated)
+ *   - at most one basemap may have isCurrent: true (zero is allowed)
+ *   - at most one basemap may have isForPreview: true (zero is allowed)
+ * Unique basemap ids, unique layer ids and unique layer orders are enforced by basemap-management only:
+ * standard JSON Schema can't express them, and config-server's Ajv registers no custom keywords for them.
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
+const prettier = require('prettier');
 const { z } = require('zod');
 const { PersistedBasemapSchema } = require('@map-colonies/app-shared');
 const { zodToJsonSchema } = require('zod-to-json-schema');
 
-const DEFAULT_OUTPUT = path.join('schemas', 'v1.schema.json');
-const DEFAULT_SCHEMA_ID = 'https://mapcolonies.com/common/basemaps/v1';
-const TITLE = 'basemaps';
+const DEFAULT_OUTPUT = path.join(__dirname, '..', 'schemas', 'v1.schema.json');
+const { configServer } = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'default.json'), 'utf8'));
+const DEFAULT_SCHEMA_ID = configServer.schemaId;
+const TITLE = configServer.configName;
 const DESCRIPTION = 'Generated from the @map-colonies/app-shared Zod schemas by basemap-management - do not edit by hand.';
+
+const OPTIONS = new Map([
+  ['--output', 'output'],
+  ['-o', 'output'],
+  ['--schema-id', 'schemaId'],
+]);
+const USAGE = 'usage: node scripts/generateConfigServerSchema.js [--output <schema.json>] [--schema-id <uri>]';
 
 function parseArgs(argv) {
   const args = { output: undefined, schemaId: undefined };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--output' || arg === '-o') {
-      args.output = argv[(i += 1)];
-    } else if (arg.startsWith('--output=')) {
-      args.output = arg.slice('--output='.length);
-    } else if (arg === '--schema-id') {
-      args.schemaId = argv[(i += 1)];
-    } else if (arg.startsWith('--schema-id=')) {
-      args.schemaId = arg.slice('--schema-id='.length);
+    const inline = arg.startsWith('--') && arg.includes('=');
+    const flag = inline ? arg.slice(0, arg.indexOf('=')) : arg;
+    const key = OPTIONS.get(flag);
+    if (key === undefined) {
+      throw new Error(`unknown argument: ${arg}`);
     }
+    const value = inline ? arg.slice(flag.length + 1) : argv[(i += 1)];
+    if (value === undefined || value.trim() === '' || (!inline && value.startsWith('-'))) {
+      throw new Error(`missing value for ${flag}`);
+    }
+    args[key] = value;
   }
   return args;
 }
 
-/**
- * At most one array item may match `properties`. Native JSON Schema 2019-09 (contains + maxContains),
- * no plugins required.
- */
 function atMostOneWhere(properties) {
-  return { contains: { properties, required: Object.keys(properties) }, maxContains: 1 };
+  return {
+    contains: {
+      type: 'object',
+      properties,
+      required: Object.keys(properties),
+    },
+    minContains: 0,
+    maxContains: 1,
+  };
 }
 
 function applyUniquenessRules(jsonSchema) {
   const basemaps = jsonSchema.properties.basemaps;
   basemaps.allOf = [atMostOneWhere({ isCurrent: { const: true } }), atMostOneWhere({ isForPreview: { const: true } })];
-  basemaps.items.properties.layers.uniqueItemProperties = ['order'];
   return jsonSchema;
 }
 
-function main() {
-  const { output, schemaId } = parseArgs(process.argv.slice(2));
-
+function buildSchema(schemaId = DEFAULT_SCHEMA_ID) {
   const ConfigServerDocumentSchema = z.object({ basemaps: z.array(PersistedBasemapSchema) });
   const jsonSchema = zodToJsonSchema(ConfigServerDocumentSchema, {
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
   });
   delete jsonSchema.$schema;
+  if (JSON.stringify(jsonSchema).includes('"$ref"')) {
+    throw new Error('the generated schema contains a $ref; it must be fully inlined');
+  }
   applyUniquenessRules(jsonSchema);
 
-  const withId = { $id: schemaId ?? DEFAULT_SCHEMA_ID, title: TITLE, description: DESCRIPTION, ...jsonSchema };
+  return { $id: schemaId, title: TITLE, description: DESCRIPTION, ...jsonSchema };
+}
 
-  const resolvedOutput = path.resolve(output ?? DEFAULT_OUTPUT);
+async function serializeSchema(schema) {
+  const options = await prettier.resolveConfig(DEFAULT_OUTPUT);
+  return prettier.format(JSON.stringify(schema, null, 2), { ...options, parser: 'json' });
+}
+
+async function main() {
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`${error.message}\n${USAGE}`);
+    process.exitCode = 2;
+    return;
+  }
+  const { output, schemaId } = args;
+
+  const resolvedOutput = output === undefined ? DEFAULT_OUTPUT : path.resolve(output);
+  const text = await serializeSchema(buildSchema(schemaId));
   fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
-  fs.writeFileSync(resolvedOutput, `${JSON.stringify(withId, null, 2)}\n`);
+  fs.writeFileSync(resolvedOutput, text);
   console.log(`generated IConfigServerDocument JSON schema -> ${resolvedOutput}`);
 }
 
-main();
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { DEFAULT_OUTPUT, DEFAULT_SCHEMA_ID, parseArgs, buildSchema, serializeSchema };

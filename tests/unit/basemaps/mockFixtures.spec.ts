@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { PersistedBasemapSchema } from '@map-colonies/app-shared';
 import { validateBasemapWriteInput } from '@src/basemaps/models/basemapValidation';
-import { assertSingleOwnerPerRole } from '@src/basemaps/models/defaultRolePolicy';
+import { findCollectionConflicts } from '@src/basemaps/models/basemapInvariants';
 import { MOCK_CATALOG_PRODUCT, MOCK_PERSISTED_BASEMAPS } from '@src/basemaps/mock/mockBasemaps';
 
 describe('mock-mode fixtures', () => {
@@ -18,10 +18,7 @@ describe('mock-mode fixtures', () => {
   );
 
   it('has unique basemap ids and a single owner per role', () => {
-    const ids = MOCK_PERSISTED_BASEMAPS.map((basemap) => basemap.id);
-
-    expect(new Set(ids).size).toBe(ids.length);
-    expect(() => assertSingleOwnerPerRole(MOCK_PERSISTED_BASEMAPS)).not.toThrow();
+    expect(findCollectionConflicts(MOCK_PERSISTED_BASEMAPS)).toEqual([]);
   });
 
   it('references the mock catalog product from at least one layer, and includes an unknown product to exercise UNRESOLVED', () => {

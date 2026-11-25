@@ -1,11 +1,11 @@
-/* eslint-disable @typescript-eslint/require-await -- every mock below stands in for the global `fetch`; none has real async work to await */
+/* eslint-disable @typescript-eslint/require-await */
 import { jsLogger } from '@map-colonies/js-logger';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { HttpConfigServerClient } from '@src/clients/configServer/httpConfigServerClient';
 import type { IBasemapManagementEnv } from '@src/common/env';
 
 const TEST_ENV: IBasemapManagementEnv = {
-  configServer: { url: 'http://config-server', configName: 'basemaps', schemaId: 'https://mapcolonies.com/basemaps/v1' },
+  configServer: { url: 'http://config-server', configName: 'basemaps', schemaId: 'https://mapcolonies.com/common/basemaps/v1' },
   rasterCatalog: { url: '', exposureType: 'SERVICE' },
   mapServer: { url: '', exposureType: 'SERVICE' },
   accessToken: { attributeName: 'token', injectionType: 'queryParam', tokenValue: '' },
@@ -36,7 +36,7 @@ describe('HttpConfigServerClient', () => {
 
       expect(requestedUrl.origin + requestedUrl.pathname).toBe('http://config-server/api/config');
       expect(requestedUrl.searchParams.get('config_name')).toBe('basemaps');
-      expect(requestedUrl.searchParams.get('schema_id')).toBe('https://mapcolonies.com/basemaps/v1');
+      expect(requestedUrl.searchParams.get('schema_id')).toBe('https://mapcolonies.com/common/basemaps/v1');
       expect(requestedUrl.searchParams.get('version')).toBe('latest');
     });
 
@@ -118,7 +118,7 @@ describe('HttpConfigServerClient', () => {
   });
 
   describe('#save', () => {
-    it('posts to the origin-only base + /api/config with the confirmed body shape', async () => {
+    it('posts to the origin-only base + /api/config with the confirmed body shape, carrying the base (latest) version', async () => {
       const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => new Response(null, { status: 200 }));
       vi.stubGlobal('fetch', fetchMock);
 
@@ -129,10 +129,21 @@ describe('HttpConfigServerClient', () => {
       expect(url).toBe('http://config-server/api/config');
       expect(JSON.parse((init as RequestInit).body as string)).toEqual({
         configName: 'basemaps',
-        schemaId: 'https://mapcolonies.com/basemaps/v1',
-        version: 3,
+        schemaId: 'https://mapcolonies.com/common/basemaps/v1',
+        version: 2,
         config: { basemaps: [] },
       });
+    });
+
+    it('should post version 1 when the config does not exist yet', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () => new Response(null, { status: 201 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await client.save({ basemaps: [] }, undefined);
+
+      const [, init] = fetchMock.mock.calls[0] ?? [];
+
+      expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ version: 1 });
     });
 
     it('resolves with the next version on a successful write', async () => {

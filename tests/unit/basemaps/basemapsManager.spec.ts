@@ -88,7 +88,10 @@ describe('BasemapsManager', () => {
       order: 1,
       opacity: 0.5,
       shouldBeUsedInModelDraping: true,
-      source: { type: SourceType.EXTERNAL, details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho', style: 's' } },
+      source: {
+        type: SourceType.EXTERNAL,
+        details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', extras: { layer: 'ortho', style: 's' } },
+      },
     };
     const PERSISTED_CATALOG_SOURCE = { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: UNIQUENESS };
 
@@ -108,6 +111,36 @@ describe('BasemapsManager', () => {
       const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
 
       expect(stored?.layers).toEqual([{ id: 'l1', order: 0, opacity: 1, source: PERSISTED_CATALOG_SOURCE }]);
+    });
+
+    const withUnknownKeys = (): BasemapWriteInput =>
+      ({
+        ...writeInput({ layers: [{ ...external, extraLayerKey: 1 } as BasemapLayerInput] }),
+        extraBasemapKey: 'x',
+        thumbnail: { url: 'https://example.com/thumb.png', width: 128, height: 128, extraThumbnailKey: true },
+      }) as BasemapWriteInput;
+    const STORED_KEYS = ['id', 'isCurrent', 'isForPreview', 'layers', 'name', 'thumbnail'];
+
+    it('should drop unknown request keys on create', async () => {
+      await manager.create(withUnknownKeys());
+
+      const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
+
+      expect(Object.keys(stored ?? {}).sort()).toEqual(STORED_KEYS);
+      expect(stored?.thumbnail).toEqual({ url: 'https://example.com/thumb.png', width: 128, height: 128 });
+      expect(stored?.layers).toEqual([{ ...external }]);
+    });
+
+    it('should drop unknown request keys on update', async () => {
+      const created = await manager.create(writeInput());
+
+      await manager.update(created.id, withUnknownKeys());
+
+      const [stored] = configServerClient.document.basemaps as PersistedBasemap[];
+
+      expect(Object.keys(stored ?? {}).sort()).toEqual(STORED_KEYS);
+      expect(stored?.thumbnail).toEqual({ url: 'https://example.com/thumb.png', width: 128, height: 128 });
+      expect(stored?.layers).toEqual([{ ...external }]);
     });
   });
 
@@ -189,6 +222,148 @@ describe('BasemapsManager', () => {
 
       expect(configServerClient.document.basemaps).toContainEqual(CORRUPT_ENTRY);
       expect(configServerClient.document.basemaps).toHaveLength(2);
+    });
+  });
+
+  describe('collection invariants', () => {
+    const LAYER: BasemapLayerInput = {
+      id: 'layer-1',
+      order: 0,
+      opacity: 1,
+      source: { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: { productId: '1', productType: ProductType.ORTHOPHOTO } },
+    };
+
+    function storedBasemap(id: string, overrides: Partial<PersistedBasemap> = {}): PersistedBasemap {
+      return { ...writeInput({ name: id, layers: [LAYER] }), id, ...overrides };
+    }
+
+    it('should not detect an updated basemap as a duplicate of itself', async () => {
+      const created = await manager.create(writeInput({ isCurrent: true, isForPreview: true, layers: [LAYER] }));
+
+      const updated = await manager.update(created.id, writeInput({ name: 'Renamed', isCurrent: true, isForPreview: true, layers: [LAYER] }));
+
+      expect(updated).toMatchObject({ id: created.id, name: 'Renamed', isCurrent: true, isForPreview: true });
+      expect(configServerClient.document.basemaps).toHaveLength(1);
+    });
+
+    it('should reject duplicate layer ids / orders on update with a 400, without saving', async () => {
+      const created = await manager.create(writeInput({ layers: [LAYER] }));
+      saveSpy.mockClear();
+
+      await expect(manager.update(created.id, writeInput({ layers: [LAYER, { ...LAYER, id: 'layer-2' }] }))).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'duplicate layer order 0 (layers "layer-1", "layer-2")',
+      });
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    it('should allow the same layer ids and orders in different basemaps', async () => {
+      await manager.create(writeInput({ layers: [LAYER] }));
+      await manager.create(writeInput({ layers: [LAYER] }));
+
+      await expect(manager.list()).resolves.toHaveLength(2);
+    });
+
+    it('should move isCurrent and isForPreview independently of each other', async () => {
+      const a = await manager.create(writeInput({ isCurrent: true, isForPreview: true }));
+      const b = await manager.create(writeInput({ isForPreview: true }));
+
+      const roles = (await manager.list()).map(({ id, isCurrent, isForPreview }) => ({ id, isCurrent, isForPreview }));
+
+      expect(roles).toEqual([
+        { id: a.id, isCurrent: true, isForPreview: false },
+        { id: b.id, isCurrent: false, isForPreview: true },
+      ]);
+    });
+
+    it('should move isCurrent on update, clearing it from the previous owner', async () => {
+      const a = await manager.create(writeInput({ isCurrent: true }));
+      const b = await manager.create(writeInput());
+
+      await manager.update(b.id, writeInput({ isCurrent: true }));
+
+      expect((await manager.getById(a.id)).isCurrent).toBe(false);
+      expect((await manager.getById(b.id)).isCurrent).toBe(true);
+    });
+
+    describe('with a stored document that violates them', () => {
+      const DUPLICATE = 'dup';
+
+      it('should refuse an ambiguous duplicate id in #getById, #update and #remove instead of picking an entry', async () => {
+        configServerClient.document.basemaps = [storedBasemap(DUPLICATE), storedBasemap(DUPLICATE, { name: 'other' })];
+        const before = structuredClone(configServerClient.document);
+
+        await expect(manager.getById(DUPLICATE)).rejects.toMatchObject({ statusCode: 500, message: expect.stringContaining('ambiguous') as unknown });
+        await expect(manager.update(DUPLICATE, writeInput())).rejects.toMatchObject({ statusCode: 500 });
+        await expect(manager.remove(DUPLICATE)).rejects.toMatchObject({ statusCode: 500 });
+        expect(configServerClient.document).toEqual(before);
+      });
+
+      it('should detect a duplicate id even when one of the entries is structurally invalid', async () => {
+        const invalidTwin = { id: DUPLICATE, name: 42 };
+        configServerClient.document.basemaps = [storedBasemap(DUPLICATE), invalidTwin];
+
+        await expect(manager.getById(DUPLICATE)).rejects.toMatchObject({ statusCode: 500, message: expect.stringContaining('ambiguous') as unknown });
+        await expect(manager.create(writeInput())).rejects.toMatchObject({
+          statusCode: 500,
+          message: expect.stringContaining('duplicate basemap id "dup" (2 entries)') as unknown,
+        });
+        expect(saveSpy).not.toHaveBeenCalled();
+        expect(configServerClient.document.basemaps).toEqual([storedBasemap(DUPLICATE), invalidTwin]);
+      });
+
+      it('should refuse to save over two stored current basemaps, naming them, and repair nothing', async () => {
+        configServerClient.document.basemaps = [storedBasemap('a', { isCurrent: true }), storedBasemap('b', { isCurrent: true })];
+
+        await expect(manager.create(writeInput())).rejects.toMatchObject({
+          statusCode: 500,
+          message: expect.stringContaining('multiple basemaps have isCurrent=true: "a", "b"') as unknown,
+        });
+        expect(saveSpy).not.toHaveBeenCalled();
+      });
+
+      it('should resolve the conflict when a write claims the role, through the existing automatic reassignment', async () => {
+        configServerClient.document.basemaps = [storedBasemap('a', { isForPreview: true }), storedBasemap('b', { isForPreview: true })];
+
+        await manager.update('a', writeInput({ name: 'a', isForPreview: true, layers: [LAYER] }));
+
+        expect((await manager.list()).filter((basemap) => basemap.isForPreview).map((basemap) => basemap.id)).toEqual(['a']);
+      });
+
+      it('should check the complete outgoing document: an invalid stored entry still holding isCurrent blocks a new owner', async () => {
+        const invalidOwner = { id: 'broken', name: 42, isCurrent: true };
+        configServerClient.document.basemaps = [invalidOwner];
+
+        await expect(manager.create(writeInput({ isCurrent: true }))).rejects.toMatchObject({
+          statusCode: 500,
+          message: expect.stringContaining('multiple basemaps have isCurrent=true: "broken",') as unknown,
+        });
+        expect(configServerClient.document.basemaps).toEqual([invalidOwner]);
+      });
+
+      it('should keep #list working and log the collection conflicts', async () => {
+        configServerClient.document.basemaps = [storedBasemap('a', { isCurrent: true }), storedBasemap('b', { isCurrent: true })];
+        const logger = fakeLogger();
+        const loggingManager = new BasemapsManager(configServerClient, await noopResolver(), logger);
+
+        await expect(loggingManager.list()).resolves.toHaveLength(2);
+
+        expect(logger.warn).toHaveBeenCalledWith({
+          msg: 'stored basemaps document violates collection invariants',
+          conflicts: ['multiple basemaps have isCurrent=true: "a", "b"'],
+        });
+      });
+
+      it('should treat a stored basemap with duplicate layer orders as corrupt (500) and keep it untouched on writes', async () => {
+        const corrupt = storedBasemap('layers', { layers: [LAYER, { ...LAYER, id: 'layer-2' }] });
+        configServerClient.document.basemaps = [corrupt];
+
+        await expect(manager.getById('layers')).rejects.toMatchObject({ statusCode: 500 });
+
+        await manager.create(writeInput());
+
+        expect(configServerClient.document.basemaps).toContainEqual(corrupt);
+      });
     });
   });
 

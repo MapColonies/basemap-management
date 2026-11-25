@@ -28,16 +28,3 @@ export function applyDefaultRoles(basemaps: readonly PersistedBasemap[], targetI
     };
   });
 }
-
-export function assertSingleOwnerPerRole(basemaps: readonly PersistedBasemap[]): void {
-  const currentOwnerIds = basemaps.filter((basemap) => basemap.isCurrent).map((basemap) => basemap.id);
-  const previewOwnerIds = basemaps.filter((basemap) => basemap.isForPreview).map((basemap) => basemap.id);
-
-  const maxOwners = 1;
-  if (currentOwnerIds.length > maxOwners) {
-    throw new Error(`invariant violated: multiple basemaps have isCurrent=true: ${currentOwnerIds.join(', ')}`);
-  }
-  if (previewOwnerIds.length > maxOwners) {
-    throw new Error(`invariant violated: multiple basemaps have isForPreview=true: ${previewOwnerIds.join(', ')}`);
-  }
-}

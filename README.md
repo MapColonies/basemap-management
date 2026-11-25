@@ -96,6 +96,7 @@ Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/
 | `npm start` | Build and run |
 | `npm run build` | Clean, regenerate OpenAPI types, compile to `dist/`, copy assets |
 | `npm run generate:openapi-types` | Regenerate `src/openapi.d.ts` from `openapi3.yaml`. Run after any OpenAPI change. |
+| `npm run generate:config-server-schema` | Regenerate the config-server JSON Schema `schemas/v1.schema.json` from the Zod schemas (`node scripts/generateConfigServerSchema.js [--output <file>] [--schema-id <uri>]`; invalid arguments exit with code `2`), see [Config-server schema](#config-server-schema) |
 | `npm run lint` / `lint:fix` | ESLint (runs Prettier check/fix first) |
 | `npm run format` / `format:fix` | Prettier check / write |
 | `npm run lint:openapi` | Lint `openapi3.yaml` with Redocly |
@@ -123,7 +124,7 @@ Read in [src/common/env.ts](src/common/env.ts) from the `@map-colonies/config` i
 | --- | --- | --- | --- |
 | `configServer.url` | `CONFIG_MANAGEMENT_URL` | `http://localhost:8080` | config-server **origin only**, without `/api/config` (the service appends it). |
 | `configServer.configName` | `CONFIG_BASEMAPS_NAME` | `basemaps` | `configName` of the Basemaps document in config-server. |
-| `configServer.schemaId` | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/basemaps/v1` | config-server `schemaId` for that document. Not yet registered in config-server's schemas. |
+| `configServer.schemaId` | `CONFIG_BASEMAPS_SCHEMA_ID` | `https://mapcolonies.com/common/basemaps/v1` | config-server `schemaId` for that document, defined in `@map-colonies/schemas` (see [Config-server schema](#config-server-schema)). |
 | `mapServer.url` | `MAP_SERVER_URL` | integration MapProxy (`''` in production/test) | Raster MapProxy base URL. `/wmts/1.0.0/WMTSCapabilities.xml` is appended unless already present; an existing query string is kept. If empty or unreachable, catalog layers come back `UNRESOLVED`. |
 | `mapServer.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `mapServices.raster.exposureType`. The token is only sent to a `ROUTE`. |
 | `rasterCatalog.exposureType` | - | `ROUTE` | `ROUTE` or `SERVICE`, as the BFF's `csw.raster.exposureType`. The token is only sent to a `ROUTE`. |
@@ -223,7 +224,7 @@ Liveness: `GET /liveness` (served at the root, outside `/basemaps`).
 ### Write rules
 
 - `name` non-empty; `thumbnail.url` non-empty; `opacity` between 0 and 1; `order` integer >= 0.
-- Layer `id` and `order` must each be unique within a Basemap.
+- Layer `id` and `order` must each be unique within a Basemap (the same values in different Basemaps are fine). A violation is a `400` naming the values and layers, e.g. `duplicate layer order 2 (layers "a", "b")`. The same check applies to an import package (`basemap.json has conflicting layers: ...`).
 - Catalog layers need a non-empty `uniqueness.productId` and a known `productType` (`Orthophoto`, `OrthophotoHistory`, `OrthophotoBest`, `RasterMap`, `RasterMapBest`, `RasterAid`, `RasterAidBest`, `RasterVector`, `RasterVectorBest`).
 - External layers need `protocol` (`XYZ`, `WMTS`, `WMS`, `OSM`), `name` and `url`.
 - **Default roles:** at most one Basemap has `isCurrent=true` and at most one has `isForPreview=true`. Setting a flag to `true` on create or update clears it from the previous owner in the same write. The two flags are independent.
@@ -300,7 +301,32 @@ interface BasemapLayerBase {
 
 ### Persistence and concurrency
 
-Each write reads the latest document, applies the change, checks the role invariant, and POSTs the next version (`previous + 1`, or `1` for a new document). A `404` from config-server on read is treated as an empty list. Writes within one process are serialized by an in-memory queue. There is no cross-replica lock: concurrent writes from different replicas rely on config-server rejecting a stale version (a non-2xx reply becomes a `502`; this behaviour of config-server is not verified here). Treat the Helm default of one replica as the safe setting.
+Each write reads the latest document, applies the change, checks the collection invariants on the exact document it is about to send (see [Stored-document invariants](#stored-document-invariants)), and POSTs it with the version it was read at (`1` for a new document); config-server stores it as the next version and rejects a stale base version with `409`. A `404` from config-server on read is treated as an empty list. Writes within one process are serialized by an in-memory queue. There is no cross-replica lock: concurrent writes from different replicas rely on that `409` (any non-2xx reply becomes a `502`). Treat the Helm default of one replica as the safe setting.
+
+### Stored-document invariants
+
+Defined once in `src/basemaps/models/basemapInvariants.ts` (`findLayerConflicts`, `findCollectionConflicts`) and reused by the write, read and import flows:
+
+| Invariant | Client input / import package | Stored document on read | Before every save | config-server JSON Schema |
+| --- | --- | --- | --- | --- |
+| Unique layer `id` / `order` within a Basemap | `400` | Basemap treated as corrupt: skipped by list, `500` on get | `500`, not saved | Not expressible |
+| Unique Basemap `id` | Server-assigned, cannot conflict | Logged; get / update / delete of the duplicated id fail with `500` (ambiguous) | `500`, not saved | Not expressible |
+| At most one `isCurrent=true` / `isForPreview=true` (independently) | Resolved automatically (previous owner cleared) | Logged | `500`, not saved | `contains` + `minContains: 0` + `maxContains: 1` |
+
+The pre-save check runs on the complete outgoing document, including stored entries that fail structural validation (they are kept and re-sent, never repaired or dropped). A stored document that already breaks an invariant therefore blocks writes with `CorruptPersistedDataError` (`500`) naming the conflicting ids, until it is fixed in config-server - except a write that claims the conflicting role on a valid Basemap, which the automatic role reassignment resolves.
+
+### Config-server schema
+
+config-server validates every write against the JSON Schema registered for `configServer.schemaId` in the [`@map-colonies/schemas`](https://github.com/MapColonies/schemas) package it has installed (`https://mapcolonies.com/common/basemaps/v1` = `schemas/common/basemaps/v1.schema.json` there). The schema describes the stored document above - `{ "basemaps": PersistedBasemap[] }`, the `config` field of the config-server request, not the request envelope.
+
+This service owns the schema: `npm run generate:config-server-schema` (`scripts/generateConfigServerSchema.js`, CommonJS) converts the `@map-colonies/app-shared` Zod schemas (`PersistedBasemapSchema`) with [`zod-to-json-schema`](https://github.com/StefanTerdell/zod-to-json-schema) (draft 2019-09, fully inlined) and writes `schemas/v1.schema.json` in this repository (wherever it is run from), which is committed. `--output <file>` (`-o`, or `--output=<file>`) writes elsewhere, resolved against the current working directory. `$id` defaults to `configServer.schemaId` and `title` is `configServer.configName`, both read from `config/default.json`; `--schema-id <uri>` (or `--schema-id=<uri>`) overrides `$id`. Unknown arguments and missing or empty values are rejected. The output is formatted with this repository's Prettier configuration (the same `@map-colonies/prettier-config` the `schemas` repository uses), so it passes `npm run format` and can be copied byte for byte. The generator fails if the converted schema contains a `$ref`. A unit test (`tests/unit/scripts/generateConfigServerSchema.spec.ts`) fails when the committed file no longer matches the Zod schemas, when its `$id` differs from `configServer.schemaId` in `config/default.json` / `helm/values.yaml`, or when config-server's validator (Ajv, draft 2019-09, same options) would accept or reject a fixture differently from what is described below.
+
+- **Unknown keys:** every object is closed (`additionalProperties: false`) except an external layer's `details.extras`, which is `.passthrough()` in Zod and keeps provider-specific keys (`additionalProperties: true`). Zod's default objects _strip_ unknown keys rather than reject them, so the schema is stricter than Zod's input check but matches what this service stores: writes persist Zod's parsed output (`validateBasemapWriteInput`), never the raw request body.
+
+- **Publish a change:** copy the generated file to `schemas/common/basemaps/v1.schema.json` in the `schemas` repository unchanged, run `npm run validate` there and release it; config-server picks it up when it is upgraded to that `@map-colonies/schemas` version.
+- **Versioning:** a released schema file must not change (the `schemas` repository enforces this). If the persisted model changes after `v1` is released, bump the version in `configServer.schemaId` (`config/default.json`) and `helm/values.yaml`, change the output file name (`DEFAULT_OUTPUT` in `scripts/generateConfigServerSchema.js`) to match, and add the new file to `schemas`. config-server keeps configs per `schemaId`: the `basemaps` document stored under `v1` is not returned for `v2`, so the switch needs a migration step (write the current document, converted, as version 1 under the new `schemaId`). A config name cannot move to a schema with a different path, only to a new version of the same one.
+- **Cross-item rule added by the generator** (Zod refinements are not translated by `zod-to-json-schema`): `allOf` on `basemaps`, one `{ contains: { type: "object", properties: { isCurrent|isForPreview: { const: true } }, required: [...] }, minContains: 0, maxContains: 1 }` branch per flag - at most one owner each, independently; zero owners, an empty list and one basemap holding both flags are valid. It uses only standard draft 2019-09 keywords, so it compiles in config-server's Ajv (`ajv/dist/2019`, strict mode) and the `schemas` repository's `npm run validate` without warnings.
+- **Not in the schema:** rules JSON Schema cannot express - Zod refinements (non-blank `name`, `thumbnail.url`, external `details.name` / `details.url`) and uniqueness by property (Basemap ids, layer ids, layer orders; `uniqueItems` compares whole items, and keywords such as ajv-keywords' `uniqueItemProperties` are not registered by config-server). They are enforced only by this service; a document written directly to config-server that breaks them is accepted there and handled as described in [Stored-document invariants](#stored-document-invariants).
 
 ## Testing
 
@@ -345,14 +371,16 @@ npm run helm-uninstall
 
 | Value | Maps to | Notes |
 | --- | --- | --- |
-| `global.configManagment.url` | `CONFIG_MANAGEMENT_URL` | Origin only, no `/api/config`. The key is spelled `configManagment` in the chart. |
-| `configManagement.{name,version,offlineMode,serverUrl}` | `CONFIG_NAME`, `CONFIG_VERSION`, `CONFIG_OFFLINE_MODE`, `CONFIG_SERVER_URL` | `@map-colonies/config` bootstrap. |
-| `basemapManagement.configServer.{name,schemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
-| `basemapManagement.mapServer.url` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
-| `basemapManagement.rasterCatalog.url` | `RASTER_CATALOG_URL` | Set to the Raster PyCSW endpoint to resolve real catalog layers; empty or unreachable leaves them unresolved. |
-| `basemapManagement.uploadLimits.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
-| `env.*` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
-| `telemetry.logger.opentelemetryOptions` | `OPENTELEMETRY_LOGGING_ENABLED`, `OTLP_LOGGER_ENDPOINT_URL` | |
+| `global.configManagment.url` | `CONFIG_MANAGEMENT_URL`, `CONFIG_SERVER_URL` (`<url>/api`) | Origin only, no `/api/config`. The key is spelled `configManagment` in the chart. |
+| `env.accessToken.{attributeName,injectionType,tokenValue}` | `ACCESS_TOKEN_ATTRIBUTE_NAME`, `ACCESS_TOKEN_INJECTION_TYPE`, `ACCESS_TOKEN_TOKEN_VALUE` | Defined locally. |
+| `env.{configName,configVersion,configOfflineMode}` | `CONFIG_NAME`, `CONFIG_VERSION`, `CONFIG_OFFLINE_MODE` | `@map-colonies/config` bootstrap. |
+| `env.{basemapsConfigName,basemapsConfigSchemaId}` | `CONFIG_BASEMAPS_NAME`, `CONFIG_BASEMAPS_SCHEMA_ID` | Basemaps document. |
+| `env.mapServerUrl` | `MAP_SERVER_URL` | Set it, or catalog layers stay unresolved. |
+| `env.rasterCatalogUrl` | `RASTER_CATALOG_URL` | Set to the Raster PyCSW endpoint to resolve real catalog layers; empty or unreachable leaves them unresolved. |
+| `env.importPackageMaxSizeBytes` | `IMPORT_PACKAGE_MAX_SIZE_BYTES` | |
+| `env.{requestPayloadLimit,responseCompressionEnabled}` | `REQUEST_PAYLOAD_LIMIT`, `RESPONSE_COMPRESSION_ENABLED` | Rendered only when `global.configManagment.enabled` is false. |
+| `env.{logLevel,logPrettyPrintEnabled}` | `LOG_LEVEL`, `LOG_PRETTY_PRINT_ENABLED` | Rendered by `helm-common`. |
+| `env.{opentelemetryLoggingEnabled,otlpLoggerEndpointUrl}` | `OPENTELEMETRY_LOGGING_ENABLED`, `OTLP_LOGGER_ENDPOINT_URL` | |
 
 Chart defaults: 1 replica, container port 8080, service port 80, OpenShift route enabled, ingress disabled (`/basemap-management` path if enabled), liveness/readiness probes on, 100m CPU / 128Mi memory. The placeholder `<CONFIG_MANAGEMENT_URL>` in `global.yaml` must be replaced.
 
