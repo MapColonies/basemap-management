@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Ajv2019 } from 'ajv/dist/2019';
+import type { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { load } from 'js-yaml';
 import { describe, it, expect } from 'vitest';
@@ -10,15 +13,25 @@ import { z } from 'zod';
 import { PersistedBasemapSchema, type PersistedBasemap } from '@map-colonies/app-shared';
 import { MOCK_PERSISTED_BASEMAPS } from '@src/basemaps/mock/mockBasemaps';
 import { findCollectionConflicts, findLayerConflicts } from '@src/basemaps/models/basemapInvariants';
-import {
-  SCHEMA_FILE,
-  SCHEMA_ID,
-  buildBasemapsConfigJsonSchema,
-  serializeBasemapsConfigJsonSchema,
-  type JsonSchema,
-} from '../../../scripts/generateConfigServerSchema.mjs';
+
+type JsonSchema = Record<string, unknown>;
 
 const ROOT = process.cwd();
+const GENERATOR = path.join(ROOT, 'scripts', 'generateConfigServerSchema.js');
+const SCHEMA_FILE = path.join(ROOT, 'schemas', 'v1.schema.json');
+
+function generateSchemaText(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'bmm-schema-'));
+  try {
+    const output = path.join(dir, 'v1.schema.json');
+    execFileSync(process.execPath, [GENERATOR, '--output', output], { cwd: ROOT, stdio: 'pipe' });
+    return readFileSync(output, 'utf8');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const SCHEMA_ID = (JSON.parse(generateSchemaText()) as { $id: string }).$id;
 
 const StoredConfigSchema = z.object({ basemaps: z.array(PersistedBasemapSchema) });
 
@@ -36,7 +49,11 @@ function createConfigServerAjv(): Ajv2019 {
 }
 
 const committedSchema = JSON.parse(readFileSync(SCHEMA_FILE, 'utf8')) as JsonSchema;
-const validateWithConfigServerAjv = createConfigServerAjv().compile(committedSchema);
+let compiledValidator: ValidateFunction | undefined;
+function validateWithConfigServerAjv(config: unknown): boolean {
+  compiledValidator ??= createConfigServerAjv().compile(committedSchema);
+  return compiledValidator(config);
+}
 
 function jsonSchemaAccepts(config: unknown): boolean {
   return validateWithConfigServerAjv(structuredClone(config));
@@ -182,15 +199,15 @@ const MATCHER_OBJECTS = ['/properties/basemaps/allOf/0/contains', '/properties/b
 
 describe('basemaps config JSON Schema (config-server)', () => {
   describe('generation', () => {
-    it('should match the committed schemas/v1.schema.json (run `npm run generate:config-server-schema` if this fails)', async () => {
-      const generated = await serializeBasemapsConfigJsonSchema(buildBasemapsConfigJsonSchema());
+    it('should match the committed schemas/v1.schema.json (run `npm run generate:config-server-schema` if this fails)', () => {
+      const generated = generateSchemaText();
 
       expect(readFileSync(SCHEMA_FILE, 'utf8')).toBe(generated);
     });
 
-    it('should generate identically on every run', async () => {
-      const first = await serializeBasemapsConfigJsonSchema(buildBasemapsConfigJsonSchema());
-      const second = await serializeBasemapsConfigJsonSchema(buildBasemapsConfigJsonSchema());
+    it('should generate identically on every run', () => {
+      const first = generateSchemaText();
+      const second = generateSchemaText();
 
       expect(second).toBe(first);
     });
