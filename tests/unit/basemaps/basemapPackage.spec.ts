@@ -169,7 +169,7 @@ describe('basemap package write/read round-trip', () => {
   it.each([
     ['ids', { id: 'layer-1' }, /basemap\.json has conflicting layers: duplicate layer id "layer-1"/],
     ['orders', { order: 0 }, /basemap\.json has conflicting layers: duplicate layer order 0 \(layers "layer-1", "layer-2"\)/],
-  ])('rejects duplicate layer %s in the package', async (_name, override, expected) => {
+  ])('should reject duplicate layer %s in the package', async (_name, override, expected) => {
     const portable = buildPortable();
     const [first, second] = portable.layers as [PortableBasemap['layers'][number], PortableBasemap['layers'][number]];
     const buffer = await writeBasemapPackage({ ...portable, layers: [first, { ...second, ...override }] }, buildPngBuffer());

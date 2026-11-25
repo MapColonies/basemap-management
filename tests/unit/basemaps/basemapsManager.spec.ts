@@ -234,7 +234,7 @@ describe('BasemapsManager', () => {
       return { ...writeInput({ name: id, layers: [LAYER] }), id, ...overrides };
     }
 
-    it('updating a basemap does not detect itself as a duplicate', async () => {
+    it('should not detect an updated basemap as a duplicate of itself', async () => {
       const created = await manager.create(writeInput({ isCurrent: true, isForPreview: true, layers: [LAYER] }));
 
       const updated = await manager.update(created.id, writeInput({ name: 'Renamed', isCurrent: true, isForPreview: true, layers: [LAYER] }));
@@ -243,7 +243,7 @@ describe('BasemapsManager', () => {
       expect(configServerClient.document.basemaps).toHaveLength(1);
     });
 
-    it('rejects duplicate layer ids / orders on update with a 400, without saving', async () => {
+    it('should reject duplicate layer ids / orders on update with a 400, without saving', async () => {
       const created = await manager.create(writeInput({ layers: [LAYER] }));
       saveSpy.mockClear();
 
@@ -254,14 +254,14 @@ describe('BasemapsManager', () => {
       expect(saveSpy).not.toHaveBeenCalled();
     });
 
-    it('allows the same layer ids and orders in different basemaps', async () => {
+    it('should allow the same layer ids and orders in different basemaps', async () => {
       await manager.create(writeInput({ layers: [LAYER] }));
       await manager.create(writeInput({ layers: [LAYER] }));
 
-      expect(await manager.list()).toHaveLength(2);
+      await expect(manager.list()).resolves.toHaveLength(2);
     });
 
-    it('moves isCurrent and isForPreview independently of each other', async () => {
+    it('should move isCurrent and isForPreview independently of each other', async () => {
       const a = await manager.create(writeInput({ isCurrent: true, isForPreview: true }));
       const b = await manager.create(writeInput({ isForPreview: true }));
 
@@ -273,7 +273,7 @@ describe('BasemapsManager', () => {
       ]);
     });
 
-    it('moves isCurrent on update, clearing it from the previous owner', async () => {
+    it('should move isCurrent on update, clearing it from the previous owner', async () => {
       const a = await manager.create(writeInput({ isCurrent: true }));
       const b = await manager.create(writeInput());
 
@@ -286,7 +286,7 @@ describe('BasemapsManager', () => {
     describe('with a stored document that violates them', () => {
       const DUPLICATE = 'dup';
 
-      it('#getById, #update and #remove refuse an ambiguous duplicate id instead of picking an entry', async () => {
+      it('should refuse an ambiguous duplicate id in #getById, #update and #remove instead of picking an entry', async () => {
         configServerClient.document.basemaps = [storedBasemap(DUPLICATE), storedBasemap(DUPLICATE, { name: 'other' })];
         const before = structuredClone(configServerClient.document);
 
@@ -296,7 +296,7 @@ describe('BasemapsManager', () => {
         expect(configServerClient.document).toEqual(before);
       });
 
-      it('detects a duplicate id even when one of the entries is structurally invalid', async () => {
+      it('should detect a duplicate id even when one of the entries is structurally invalid', async () => {
         const invalidTwin = { id: DUPLICATE, name: 42 };
         configServerClient.document.basemaps = [storedBasemap(DUPLICATE), invalidTwin];
 
@@ -309,7 +309,7 @@ describe('BasemapsManager', () => {
         expect(configServerClient.document.basemaps).toEqual([storedBasemap(DUPLICATE), invalidTwin]);
       });
 
-      it('refuses to save over two stored current basemaps, naming them, and repairs nothing', async () => {
+      it('should refuse to save over two stored current basemaps, naming them, and repair nothing', async () => {
         configServerClient.document.basemaps = [storedBasemap('a', { isCurrent: true }), storedBasemap('b', { isCurrent: true })];
 
         await expect(manager.create(writeInput())).rejects.toMatchObject({
@@ -319,7 +319,7 @@ describe('BasemapsManager', () => {
         expect(saveSpy).not.toHaveBeenCalled();
       });
 
-      it('a write that claims the role resolves it through the existing automatic reassignment', async () => {
+      it('should resolve the conflict when a write claims the role, through the existing automatic reassignment', async () => {
         configServerClient.document.basemaps = [storedBasemap('a', { isForPreview: true }), storedBasemap('b', { isForPreview: true })];
 
         await manager.update('a', writeInput({ name: 'a', isForPreview: true, layers: [LAYER] }));
@@ -327,7 +327,7 @@ describe('BasemapsManager', () => {
         expect((await manager.list()).filter((basemap) => basemap.isForPreview).map((basemap) => basemap.id)).toEqual(['a']);
       });
 
-      it('checks the complete outgoing document: an invalid stored entry still holding isCurrent blocks a new owner', async () => {
+      it('should check the complete outgoing document: an invalid stored entry still holding isCurrent blocks a new owner', async () => {
         const invalidOwner = { id: 'broken', name: 42, isCurrent: true };
         configServerClient.document.basemaps = [invalidOwner];
 
@@ -338,23 +338,25 @@ describe('BasemapsManager', () => {
         expect(configServerClient.document.basemaps).toEqual([invalidOwner]);
       });
 
-      it('#list keeps working and logs the collection conflicts', async () => {
+      it('should keep #list working and log the collection conflicts', async () => {
         configServerClient.document.basemaps = [storedBasemap('a', { isCurrent: true }), storedBasemap('b', { isCurrent: true })];
         const logger = fakeLogger();
         const loggingManager = new BasemapsManager(configServerClient, await noopResolver(), logger);
 
-        expect(await loggingManager.list()).toHaveLength(2);
+        await expect(loggingManager.list()).resolves.toHaveLength(2);
+
         expect(logger.warn).toHaveBeenCalledWith({
           msg: 'stored basemaps document violates collection invariants',
           conflicts: ['multiple basemaps have isCurrent=true: "a", "b"'],
         });
       });
 
-      it('treats a stored basemap with duplicate layer orders as corrupt (500) and keeps it untouched on writes', async () => {
+      it('should treat a stored basemap with duplicate layer orders as corrupt (500) and keep it untouched on writes', async () => {
         const corrupt = storedBasemap('layers', { layers: [LAYER, { ...LAYER, id: 'layer-2' }] });
         configServerClient.document.basemaps = [corrupt];
 
         await expect(manager.getById('layers')).rejects.toMatchObject({ statusCode: 500 });
+
         await manager.create(writeInput());
 
         expect(configServerClient.document.basemaps).toContainEqual(corrupt);

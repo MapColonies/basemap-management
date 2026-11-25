@@ -61,7 +61,7 @@ function buildBasemapsConfigJsonSchema(): JsonSchema {
 
 async function serializeBasemapsConfigJsonSchema(schema: JsonSchema): Promise<string> {
   const options = await resolveConfig(SCHEMA_FILE);
-  return format(JSON.stringify(schema), { ...options, parser: 'json' });
+  return format(JSON.stringify(schema, null, 2), { ...options, parser: 'json' });
 }
 
 async function main(): Promise<void> {

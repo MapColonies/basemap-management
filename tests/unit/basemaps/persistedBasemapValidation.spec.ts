@@ -56,7 +56,7 @@ describe('splitPersistedBasemaps', () => {
   it.each([
     ['ids', { id: 'layer-1', order: 1 }],
     ['orders', { id: 'layer-2', order: 0 }],
-  ])('treats a stored basemap with duplicate layer %s as invalid and logs the conflict', (_name, layerKey) => {
+  ])('should treat a stored basemap with duplicate layer %s as invalid and log the conflict', (_name, layerKey) => {
     const entry = validEntry('dup-layers');
     entry.layers = [entry.layers[0]!, { ...entry.layers[0]!, ...layerKey }];
     const logger = fakeLogger();
@@ -71,7 +71,7 @@ describe('splitPersistedBasemaps', () => {
     );
   });
 
-  it('accepts the same layer ids and orders in different basemaps', () => {
+  it('should accept the same layer ids and orders in different basemaps', () => {
     const { valid } = splitPersistedBasemaps([validEntry('a'), validEntry('b')], fakeLogger());
 
     expect(valid).toHaveLength(2);
