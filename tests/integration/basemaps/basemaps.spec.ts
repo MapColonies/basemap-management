@@ -296,7 +296,7 @@ describe('basemaps', () => {
 
     it('returns an external layer as RESOLVED with its details unchanged on GET', async () => {
       const thumbnail = readyThumbnail();
-      const details = { protocol: 'WMTS' as const, name: 'osm', url: 'https://example.com/wmts', layer: 'ortho' };
+      const details = { protocol: 'WMTS' as const, name: 'osm', url: 'https://example.com/wmts', extras: { layer: 'ortho' } };
       const createResponse = await requestSender.createBasemap({
         requestBody: {
           name: 'External',
