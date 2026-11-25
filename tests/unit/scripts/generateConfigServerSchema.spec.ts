@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -20,15 +20,32 @@ const ROOT = process.cwd();
 const GENERATOR = path.join(ROOT, 'scripts', 'generateConfigServerSchema.js');
 const SCHEMA_FILE = path.join(ROOT, 'schemas', 'v1.schema.json');
 
-function generateSchemaText(): string {
+interface IGeneratorArgs {
+  output?: string;
+  schemaId?: string;
+}
+interface IGenerator {
+  DEFAULT_OUTPUT: string;
+  DEFAULT_SCHEMA_ID: string;
+  parseArgs: (argv: string[]) => IGeneratorArgs;
+}
+const generator = createRequire(path.join(ROOT, 'package.json'))(GENERATOR) as IGenerator;
+
+function withTempDir<T>(run: (dir: string) => T): T {
   const dir = mkdtempSync(path.join(tmpdir(), 'bmm-schema-'));
   try {
-    const output = path.join(dir, 'v1.schema.json');
-    execFileSync(process.execPath, [GENERATOR, '--output', output], { cwd: ROOT, stdio: 'pipe' });
-    return readFileSync(output, 'utf8');
+    return run(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function generateSchemaText(): string {
+  return withTempDir((dir) => {
+    const output = path.join(dir, 'v1.schema.json');
+    execFileSync(process.execPath, [GENERATOR, '--output', output], { cwd: ROOT, stdio: 'pipe' });
+    return readFileSync(output, 'utf8');
+  });
 }
 
 const SCHEMA_ID = (JSON.parse(generateSchemaText()) as { $id: string }).$id;
@@ -82,10 +99,10 @@ const VALID_CONFIGS: [string, unknown][] = [
   ['a catalog layer whose uniqueness fields are omitted', withLayer({ ...catalogLayer, source: { ...catalogLayer.source, uniqueness: {} } })],
   ['a layer without shouldBeUsedInModelDraping', withLayer({ ...catalogLayer, shouldBeUsedInModelDraping: undefined })],
   [
-    'an external layer with provider-specific detail keys (details is .passthrough())',
+    'an external layer with provider-specific extras (extras is .passthrough())',
     withLayer({
       ...externalLayer,
-      source: { type: 'EXTERNAL', details: { protocol: 'WMTS', name: 'n', url: 'u', matrixSet: 'EPSG:3857', style: 'default' } },
+      source: { type: 'EXTERNAL', details: { protocol: 'WMTS', name: 'n', url: 'u', extras: { matrixSet: 'EPSG:3857', style: 'default' } } },
     }),
   ],
 ];
@@ -125,6 +142,10 @@ const UNKNOWN_KEY_CONFIGS: [string, unknown][] = [
   ],
   ['a catalog uniqueness', withLayer({ ...catalogLayer, source: { ...catalogLayer.source, uniqueness: { productId: 'p', unknown: 1 } } })],
   ['an external source', withLayer({ ...externalLayer, source: { ...externalLayer.source, unknown: 1 } })],
+  [
+    'external details (provider-specific keys belong in extras)',
+    withLayer({ ...externalLayer, source: { type: 'EXTERNAL', details: { protocol: 'WMTS', name: 'n', url: 'u', matrixSet: 'EPSG:3857' } } }),
+  ],
   ['a source mixing both branches', withLayer({ ...externalLayer, source: { ...externalLayer.source, domain: 'RASTER', uniqueness: {} } })],
 ];
 
@@ -193,8 +214,9 @@ const CLOSED_OBJECTS = [
   `${SOURCE}/anyOf/0`,
   `${SOURCE}/anyOf/0/properties/uniqueness`,
   `${SOURCE}/anyOf/1`,
+  `${SOURCE}/anyOf/1/properties/details`,
 ];
-const OPEN_OBJECTS = [`${SOURCE}/anyOf/1/properties/details`];
+const OPEN_OBJECTS = [`${SOURCE}/anyOf/1/properties/details/properties/extras`];
 const MATCHER_OBJECTS = ['/properties/basemaps/allOf/0/contains', '/properties/basemaps/allOf/1/contains'];
 
 describe('basemaps config JSON Schema (config-server)', () => {
@@ -221,6 +243,59 @@ describe('basemaps config JSON Schema (config-server)', () => {
       expect(text).not.toContain('"nullable"');
       expect(text).not.toContain('"discriminator"');
       expect(committedSchema).not.toHaveProperty('$schema');
+    });
+  });
+
+  describe('command line', () => {
+    it.each<[string[], IGeneratorArgs]>([
+      [[], { output: undefined, schemaId: undefined }],
+      [['--output', 'a.json', '--schema-id', 'https://example.com/x'], { output: 'a.json', schemaId: 'https://example.com/x' }],
+      [['-o', 'a.json'], { output: 'a.json', schemaId: undefined }],
+      [['--output=a.json', '--schema-id=https://example.com/x'], { output: 'a.json', schemaId: 'https://example.com/x' }],
+    ])('should parse %j', (argv, expected) => {
+      expect(generator.parseArgs(argv)).toEqual(expected);
+    });
+
+    it.each<[string[], string]>([
+      [['--ouput=a.json'], 'unknown argument: --ouput=a.json'],
+      [['a.json'], 'unknown argument: a.json'],
+      [['-o=a.json'], 'unknown argument: -o=a.json'],
+      [['--output'], 'missing value for --output'],
+      [['--output', '--schema-id', 'x'], 'missing value for --output'],
+      [['--output='], 'missing value for --output'],
+      [['--schema-id', ' '], 'missing value for --schema-id'],
+      [['--schema-id='], 'missing value for --schema-id'],
+    ])('should reject %j', (argv, message) => {
+      expect(() => generator.parseArgs(argv)).toThrow(message);
+    });
+
+    it('should default to schemas/v1.schema.json in this repository and to the configured schemaId', () => {
+      const defaultConfig = JSON.parse(readFileSync(path.join(ROOT, 'config', 'default.json'), 'utf8')) as { configServer: { schemaId: string } };
+
+      expect(generator.DEFAULT_OUTPUT).toBe(SCHEMA_FILE);
+      expect(generator.DEFAULT_SCHEMA_ID).toBe(defaultConfig.configServer.schemaId);
+    });
+
+    it('should exit with an error and usage, writing nothing, on invalid arguments', () => {
+      withTempDir((dir) => {
+        const result = spawnSync(process.execPath, [GENERATOR, '--output', '--schema-id', 'x'], { cwd: dir, encoding: 'utf8' });
+
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain('missing value for --output');
+        expect(result.stderr).toContain('usage: node scripts/generateConfigServerSchema.js');
+        expect(existsSync(path.join(dir, '--schema-id'))).toBe(false);
+        expect(existsSync(path.join(dir, 'schemas'))).toBe(false);
+      });
+    });
+
+    it('should resolve an explicit relative --output against the working directory and apply --schema-id', () => {
+      withTempDir((dir) => {
+        execFileSync(process.execPath, [GENERATOR, '--output=out/schema.json', '--schema-id', 'https://example.com/x'], { cwd: dir, stdio: 'pipe' });
+
+        const generated = readFileSync(path.join(dir, 'out', 'schema.json'), 'utf8');
+
+        expect(generated).toBe(readFileSync(SCHEMA_FILE, 'utf8').replace(`"$id": "${SCHEMA_ID}"`, '"$id": "https://example.com/x"'));
+      });
     });
   });
 

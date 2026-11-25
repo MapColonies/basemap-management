@@ -128,8 +128,7 @@
               },
               "required": ["id", "order", "opacity", "source"],
               "additionalProperties": false
-            },
-            "uniqueItemProperties": ["order"]
+            }
           },
           "id": {
             "type": "string"
@@ -141,6 +140,7 @@
       "allOf": [
         {
           "contains": {
+            "type": "object",
             "properties": {
               "isCurrent": {
                 "const": true
@@ -148,10 +148,12 @@
             },
             "required": ["isCurrent"]
           },
+          "minContains": 0,
           "maxContains": 1
         },
         {
           "contains": {
+            "type": "object",
             "properties": {
               "isForPreview": {
                 "const": true
@@ -159,6 +161,7 @@
             },
             "required": ["isForPreview"]
           },
+          "minContains": 0,
           "maxContains": 1
         }
       ]

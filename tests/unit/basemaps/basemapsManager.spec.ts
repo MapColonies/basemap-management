@@ -88,7 +88,10 @@ describe('BasemapsManager', () => {
       order: 1,
       opacity: 0.5,
       shouldBeUsedInModelDraping: true,
-      source: { type: SourceType.EXTERNAL, details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho', style: 's' } },
+      source: {
+        type: SourceType.EXTERNAL,
+        details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', extras: { layer: 'ortho', style: 's' } },
+      },
     };
     const PERSISTED_CATALOG_SOURCE = { type: SourceType.CATALOG_RESOURCE, domain: Domain.RASTER, uniqueness: UNIQUENESS };
 

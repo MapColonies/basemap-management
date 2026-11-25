@@ -126,10 +126,6 @@ class BasemapsManager {
     }
   }
 
-  /**
-   * Runs `fn` on the latest document and saves the result. The invariants are checked on the exact document sent to
-   * config-server (including stored entries that failed structural validation), never repaired automatically.
-   */
   private async mutate<T>(fn: (basemaps: PersistedBasemap[], rawEntries: readonly unknown[]) => { next: PersistedBasemap[]; result: T }): Promise<T> {
     const run = async (): Promise<T> => {
       const { document, version } = await this.configServerClient.getLatest();
