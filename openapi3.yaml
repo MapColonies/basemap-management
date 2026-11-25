@@ -1,13 +1,502 @@
+# GENERATED FILE - DO NOT EDIT.
+# Generated from the Zod schemas (@map-colonies/app-shared and src/basemaps/models) by openapi/document.cts.
+# Run `npm run generate:openapi` to regenerate it, then `npm run generate:openapi-types`.
 openapi: 3.0.1
 info:
   title: basemap-management
-  description: >-
-    Persistence and domain operations for Basemaps (ordered compositions of map
-    layers) consumed by the MapColonies Main App and other REST clients.
+  description: Persistence and domain operations for Basemaps (ordered compositions of map layers) consumed by the MapColonies Main App and other REST clients.
   version: 1.0.0
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
+security:
+  - {}
+components:
+  responses:
+    badRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'
+    notFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/error'
+  schemas:
+    capability:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Layer identifier
+        style:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+                minLength: 1
+                description: Style identifier value
+              isDefault:
+                type: string
+                nullable: true
+                minLength: 1
+                description: Whether this style is the default style
+            required:
+              - value
+              - isDefault
+          minItems: 1
+          description: Styles available for the layer
+        format:
+          type: array
+          items:
+            type: string
+            minLength: 1
+          minItems: 1
+          description: MIME types supported by the layer
+        tileMatrixSet:
+          type: array
+          items:
+            type: object
+            properties:
+              tileMatrixSetID:
+                type: string
+                minLength: 1
+                description: Identifier of the TileMatrixSet
+              tileMatrixLabels:
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+                minItems: 1
+                description: TileMatrix identifier per level
+            required:
+              - tileMatrixSetID
+              - tileMatrixLabels
+          minItems: 1
+          description: TileMatrixSets available for the layer
+        url:
+          type: array
+          items:
+            type: object
+            properties:
+              format:
+                type: string
+                minLength: 1
+                description: MIME type of the resource
+              resourceType:
+                type: string
+                minLength: 1
+                description: Type of the resource, e.g. tile
+              template:
+                type: string
+                minLength: 1
+                description: URL template for the resource
+            required:
+              - format
+              - resourceType
+              - template
+          minItems: 1
+          description: Resource URLs available for the layer
+      required:
+        - id
+        - style
+        - format
+        - tileMatrixSet
+        - url
+      description: MapProxy WMTS capability of a catalog layer.
+    rasterUniqueness:
+      type: object
+      properties:
+        productId:
+          type: string
+          nullable: true
+          description: Raster catalog product id
+        productType:
+          type: string
+          nullable: true
+          description: Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)
+      description: 'Identifies a raster catalog product. This is also the persisted/portable identity - there is no environment-specific id. Both fields are optional: a missing, empty or unknown value is accepted and the layer is returned with status UNRESOLVED.'
+    externalLayerDetails:
+      type: object
+      properties:
+        protocol:
+          type: string
+          description: Serving protocol of an external layer
+        name:
+          type: string
+        url:
+          type: string
+      required:
+        - protocol
+        - name
+        - url
+      description: Configuration for an externally-served layer. `protocol`/`name`/`url` are the only fields this service interprets; additional provider-specific keys are accepted and stored as-is. `protocol` must be one of the shared imagery protocols (WMS, WMTS, XYZ, OSM, MAPBOX_STYLE, BING_MAPS); that list is enforced by the service at request-validation time.
+    basemapThumbnail:
+      type: object
+      properties:
+        url:
+          type: string
+        width:
+          type: number
+          enum:
+            - 128
+        height:
+          type: number
+          enum:
+            - 128
+      required:
+        - url
+        - width
+        - height
+      description: A persisted thumbnail reference. The binary image itself lives in data-service (uploaded via catalog-web-app-bff); only its URL is part of the Basemap configuration.
+    catalogResourceLayerSource:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - CATALOG_RESOURCE
+        domain:
+          type: string
+          enum:
+            - RASTER
+        uniqueness:
+          $ref: '#/components/schemas/rasterUniqueness'
+      required:
+        - type
+        - domain
+        - uniqueness
+      description: A catalog resource reference, as accepted by POST/PUT, persisted and exported.
+    externalLayerSource:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - EXTERNAL
+        details:
+          $ref: '#/components/schemas/externalLayerDetails'
+      required:
+        - type
+        - details
+      description: An externally-served layer (not a catalog resource), as accepted by POST/PUT, persisted and exported.
+    basemapLayerSourceInput:
+      oneOf:
+        - $ref: '#/components/schemas/catalogResourceLayerSource'
+        - $ref: '#/components/schemas/externalLayerSource'
+      discriminator:
+        propertyName: type
+        mapping:
+          CATALOG_RESOURCE: '#/components/schemas/catalogResourceLayerSource'
+          EXTERNAL: '#/components/schemas/externalLayerSource'
+      description: A Basemap layer's source, as accepted by POST/PUT.
+    basemapLayerInput:
+      type: object
+      properties:
+        id:
+          type: string
+        order:
+          type: integer
+          minimum: 0
+        opacity:
+          type: number
+          minimum: 0
+          maximum: 1
+        shouldBeUsedInModelDraping:
+          type: boolean
+          description: Only meaningful for layer sources eligible for 3D model draping. Omitted entirely for ineligible sources - never sent as false/disabled.
+        source:
+          $ref: '#/components/schemas/basemapLayerSourceInput'
+      required:
+        - id
+        - order
+        - opacity
+        - source
+    basemapWriteInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        thumbnail:
+          $ref: '#/components/schemas/basemapThumbnail'
+        isCurrent:
+          type: boolean
+          description: At most one Basemap may have isCurrent=true. Default for the Cesium map viewer.
+        isForPreview:
+          type: boolean
+          description: At most one Basemap may have isForPreview=true. Default for OpenLayers preview viewers. Independent of isCurrent.
+        layers:
+          type: array
+          items:
+            $ref: '#/components/schemas/basemapLayerInput'
+      required:
+        - name
+        - thumbnail
+        - isCurrent
+        - isForPreview
+        - layers
+      description: Same shape as a persisted Basemap, minus the server-assigned id. Catalog layer sources are references (no status, layer or capabilities).
+    basemapLayerOutput:
+      type: object
+      properties:
+        id:
+          type: string
+        order:
+          type: integer
+          minimum: 0
+        opacity:
+          type: number
+          minimum: 0
+          maximum: 1
+        shouldBeUsedInModelDraping:
+          type: boolean
+        source:
+          anyOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - CATALOG_RESOURCE
+                domain:
+                  type: string
+                  enum:
+                    - RASTER
+                uniqueness:
+                  type: object
+                  properties:
+                    productId:
+                      type: string
+                      nullable: true
+                      description: Raster catalog product id
+                    productType:
+                      type: string
+                      nullable: true
+                      description: Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)
+                  description: Identifies a raster catalog product by productId + productType
+                status:
+                  type: string
+                  enum:
+                    - RESOLVED
+                layer:
+                  type: object
+                  properties:
+                    productId:
+                      type: string
+                      nullable: true
+                      description: Raster catalog product id
+                    productType:
+                      type: string
+                      nullable: true
+                      description: Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)
+                capabilities:
+                  $ref: '#/components/schemas/capability'
+              required:
+                - type
+                - domain
+                - uniqueness
+                - status
+                - layer
+                - capabilities
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - CATALOG_RESOURCE
+                domain:
+                  type: string
+                  enum:
+                    - RASTER
+                uniqueness:
+                  type: object
+                  properties:
+                    productId:
+                      type: string
+                      nullable: true
+                      description: Raster catalog product id
+                    productType:
+                      type: string
+                      nullable: true
+                      description: Raster product type (wire values as in @map-colonies/types, e.g. Orthophoto)
+                  description: Identifies a raster catalog product by productId + productType
+                status:
+                  type: string
+                  enum:
+                    - UNRESOLVED
+                layer:
+                  type: object
+                  nullable: true
+                  enum:
+                    - null
+                capabilities:
+                  type: object
+                  nullable: true
+                  enum:
+                    - null
+              required:
+                - type
+                - domain
+                - uniqueness
+                - status
+                - layer
+                - capabilities
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - EXTERNAL
+                details:
+                  type: object
+                  properties:
+                    protocol:
+                      type: string
+                      description: Serving protocol of an external layer
+                    name:
+                      type: string
+                    url:
+                      type: string
+                  required:
+                    - protocol
+                    - name
+                    - url
+                status:
+                  type: string
+                  enum:
+                    - RESOLVED
+              required:
+                - type
+                - details
+                - status
+      required:
+        - id
+        - order
+        - opacity
+        - source
+      description: A Basemap layer as returned by reads, write responses and the import review. A catalog source is RESOLVED only when both the catalog record and its map server capability were found (layer and capabilities are then set); otherwise it is UNRESOLVED and layer and capabilities are null. External sources are always RESOLVED.
+    basemap:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        thumbnail:
+          $ref: '#/components/schemas/basemapThumbnail'
+        isCurrent:
+          type: boolean
+          description: At most one Basemap may have isCurrent=true. Default for the Cesium map viewer.
+        isForPreview:
+          type: boolean
+          description: At most one Basemap may have isForPreview=true. Default for OpenLayers preview viewers. Independent of isCurrent.
+        layers:
+          type: array
+          items:
+            $ref: '#/components/schemas/basemapLayerOutput'
+        id:
+          type: string
+      required:
+        - name
+        - thumbnail
+        - isCurrent
+        - isForPreview
+        - layers
+        - id
+    importReviewRoleConflict:
+      type: object
+      properties:
+        basemapId:
+          type: string
+        basemapName:
+          type: string
+      required:
+        - basemapId
+        - basemapName
+    importReview:
+      type: object
+      properties:
+        name:
+          type: string
+        isCurrent:
+          type: boolean
+        isForPreview:
+          type: boolean
+        currentRoleConflict:
+          allOf:
+            - $ref: '#/components/schemas/importReviewRoleConflict'
+            - description: Present when isCurrent=true and another Basemap currently owns that role.
+        previewRoleConflict:
+          allOf:
+            - $ref: '#/components/schemas/importReviewRoleConflict'
+            - description: Present when isForPreview=true and another Basemap currently owns that role.
+        thumbnail:
+          oneOf:
+            - type: object
+              properties:
+                included:
+                  type: boolean
+                  enum:
+                    - true
+                width:
+                  type: integer
+                height:
+                  type: integer
+                mimeType:
+                  type: string
+                  enum:
+                    - image/png
+                    - image/webp
+                dataBase64:
+                  type: string
+                  description: The thumbnail binary, base64-encoded, for direct use as in-memory editor state.
+              required:
+                - included
+                - width
+                - height
+                - mimeType
+                - dataBase64
+            - type: object
+              properties:
+                included:
+                  type: boolean
+                  enum:
+                    - false
+              required:
+                - included
+        layers:
+          type: array
+          items:
+            $ref: '#/components/schemas/basemapLayerOutput'
+      required:
+        - name
+        - isCurrent
+        - isForPreview
+        - thumbnail
+        - layers
+      description: A draft/review model of an imported package, resolved against this environment exactly like a GET. It is never itself persisted and must never be accepted by the Basemap write endpoints.
+    error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    basemapId:
+      type: string
+  parameters:
+    basemapId:
+      schema:
+        $ref: '#/components/schemas/basemapId'
+      required: true
+      name: basemapId
+      in: path
 paths:
   /basemaps:
     get:
@@ -30,10 +519,7 @@ paths:
       operationId: createBasemap
       tags:
         - basemaps
-      summary: >-
-        Create a new Basemap. The thumbnail must be a ready URL - uploading the
-        image itself is handled by catalog-web-app-bff (via data-service), not
-        by this service.
+      summary: Create a new Basemap. The thumbnail must be a ready URL - uploading the image itself is handled by catalog-web-app-bff (via data-service), not by this service.
       requestBody:
         required: true
         content:
@@ -54,27 +540,20 @@ paths:
       operationId: validateBasemapImport
       tags:
         - basemaps
-      summary: >
-        Parse and validate a Basemap export package (ZIP) without persisting
-        anything. Returns a review describing the Basemap, its default-role
-        consequences, and the resolution of every catalog layer against this
-        environment's catalog and MapProxy. Resolution failures are reported,
-        never silently dropped.
+      summary: Parse and validate a Basemap export package (ZIP) without persisting anything. Returns a review describing the Basemap, its default-role consequences, and the resolution of every catalog layer against this environment's catalog and MapProxy. Resolution failures are reported, never silently dropped.
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required:
-                - package
               properties:
                 package:
                   type: string
                   format: binary
-                  description: >-
-                    The Basemap export ZIP package (basemap.json + thumbnail
-                    binary).
+                  description: The Basemap export ZIP package (basemap.json + thumbnail binary).
+              required:
+                - package
       responses:
         '200':
           description: OK
@@ -85,13 +564,13 @@ paths:
         '400':
           $ref: '#/components/responses/badRequest'
   /basemaps/{basemapId}:
-    parameters:
-      - $ref: '#/components/parameters/basemapId'
     get:
       operationId: getBasemap
       tags:
         - basemaps
       summary: Get a single Basemap
+      parameters:
+        - $ref: '#/components/parameters/basemapId'
       responses:
         '200':
           description: OK
@@ -106,6 +585,8 @@ paths:
       tags:
         - basemaps
       summary: Fully replace a Basemap
+      parameters:
+        - $ref: '#/components/parameters/basemapId'
       requestBody:
         required: true
         content:
@@ -128,21 +609,21 @@ paths:
       tags:
         - basemaps
       summary: Delete a Basemap
+      parameters:
+        - $ref: '#/components/parameters/basemapId'
       responses:
         '204':
           description: No Content
         '404':
           $ref: '#/components/responses/notFound'
   /basemaps/{basemapId}/export:
-    parameters:
-      - $ref: '#/components/parameters/basemapId'
     get:
       operationId: exportBasemap
       tags:
         - basemaps
-      summary: >-
-        Export a Basemap as a self-contained, portable ZIP package
-        (configuration + thumbnail binary; no Raster tiles/data).
+      summary: Export a Basemap as a self-contained, portable ZIP package (configuration + thumbnail binary; no Raster tiles/data).
+      parameters:
+        - $ref: '#/components/parameters/basemapId'
       responses:
         '200':
           description: OK
@@ -153,458 +634,3 @@ paths:
                 format: binary
         '404':
           $ref: '#/components/responses/notFound'
-security:
-  - {}
-components:
-  parameters:
-    basemapId:
-      name: basemapId
-      in: path
-      required: true
-      schema:
-        type: string
-  responses:
-    badRequest:
-      description: Bad Request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/error'
-    notFound:
-      description: Not Found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/error'
-  schemas:
-    error:
-      type: object
-      required:
-        - message
-      properties:
-        message:
-          type: string
-    basemapThumbnail:
-      type: object
-      description: >-
-        A persisted thumbnail reference. The binary image itself lives in
-        data-service (uploaded via catalog-web-app-bff); only its URL is part
-        of the Basemap configuration.
-      required:
-        - url
-        - width
-        - height
-      properties:
-        url:
-          type: string
-          format: uri
-        width:
-          type: integer
-          enum:
-            - 128
-        height:
-          type: integer
-          enum:
-            - 128
-    protocol:
-      type: string
-      description: >-
-        Serving protocol of an external layer. The supported values come from
-        the shared imagery protocol list (`WMS`, `WMTS`, `XYZ`, `OSM`,
-        `MAPBOX_STYLE`, `BING_MAPS`) and are enforced by the service at
-        request-validation time; the schema stays an open string so the list
-        can grow in `@map-colonies/types` without a spec change.
-    externalLayerDetails:
-      type: object
-      description: >
-        Configuration for an externally-served layer. `protocol`/`name`/`url`
-        are the only fields this service interprets; additional
-        provider-specific keys are accepted and stored as-is.
-      required:
-        - protocol
-        - name
-        - url
-      properties:
-        protocol:
-          $ref: '#/components/schemas/protocol'
-        name:
-          type: string
-        url:
-          type: string
-      additionalProperties: true
-    externalLayerSource:
-      type: object
-      description: >-
-        An externally-served layer (not a catalog resource), as accepted by
-        POST/PUT, persisted and exported.
-      required:
-        - type
-        - details
-      properties:
-        type:
-          type: string
-          enum:
-            - EXTERNAL
-        details:
-          $ref: '#/components/schemas/externalLayerDetails'
-    domain:
-      type: string
-      description: >-
-        Catalog domain of a catalog resource. Only RASTER is currently supported
-        (VECTOR is future scope).
-      enum:
-        - RASTER
-    rasterUniqueness:
-      type: object
-      description: >-
-        Identifies a raster catalog product. This is also the persisted/portable
-        identity - there is no environment-specific id. Both fields are
-        optional: a missing, empty or unknown value is accepted and the layer is
-        returned with status UNRESOLVED.
-      properties:
-        productId:
-          type: string
-          nullable: true
-        productType:
-          type: string
-          nullable: true
-          description: >-
-            Raster product type (wire values as in @map-colonies/types, e.g.
-            Orthophoto).
-    catalogResourceLayerSource:
-      type: object
-      description: >-
-        A catalog resource reference, as accepted by POST/PUT, persisted and
-        exported.
-      required:
-        - type
-        - domain
-        - uniqueness
-      properties:
-        type:
-          type: string
-          enum:
-            - CATALOG_RESOURCE
-        domain:
-          $ref: '#/components/schemas/domain'
-        uniqueness:
-          $ref: '#/components/schemas/rasterUniqueness'
-    capability:
-      type: object
-      nullable: true
-      description: >-
-        MapProxy WMTS capability of a catalog layer.
-      required:
-        - id
-      properties:
-        id:
-          type: string
-          description: WMTS Layer ows:Identifier (= the catalog record's WMTS link name).
-        style:
-          type: array
-          items:
-            type: object
-            required:
-              - value
-            properties:
-              value:
-                type: string
-              isDefault:
-                type: string
-                nullable: true
-        format:
-          type: array
-          items:
-            type: string
-        tileMatrixSet:
-          type: array
-          items:
-            type: object
-            required:
-              - tileMatrixSetID
-              - tileMatrixLabels
-            properties:
-              tileMatrixSetID:
-                type: string
-              tileMatrixLabels:
-                type: array
-                items:
-                  type: string
-        url:
-          type: array
-          items:
-            type: object
-            required:
-              - format
-              - resourceType
-              - template
-            properties:
-              format:
-                type: string
-              resourceType:
-                type: string
-              template:
-                type: string
-    layerRasterRecord:
-      type: object
-      nullable: true
-      description: >-
-        The resolved catalog layer record (its product reference; all other record fields pass through).
-      properties:
-        productId:
-          type: string
-          nullable: true
-        productType:
-          type: string
-          nullable: true
-      additionalProperties: true
-    status:
-      type: string
-      description: Resolution state of a layer source in read responses.
-      enum:
-        - RESOLVED
-        - UNRESOLVED
-    catalogResourceLayerSourceOutput:
-      type: object
-      description: >
-        A catalog resource as returned by reads, write responses and the import
-        review. Keeps its original reference. status is RESOLVED only when both
-        the catalog record and its map server capability were found (layer and
-        capabilities are then set); otherwise status is UNRESOLVED and layer and
-        capabilities are null.
-      required:
-        - type
-        - domain
-        - uniqueness
-        - status
-        - layer
-        - capabilities
-      properties:
-        type:
-          type: string
-          enum:
-            - CATALOG_RESOURCE
-        domain:
-          $ref: '#/components/schemas/domain'
-        uniqueness:
-          $ref: '#/components/schemas/rasterUniqueness'
-        status:
-          $ref: '#/components/schemas/status'
-        layer:
-          $ref: '#/components/schemas/layerRasterRecord'
-        capabilities:
-          $ref: '#/components/schemas/capability'
-    externalLayerSourceOutput:
-      type: object
-      description: >-
-        An externally-served layer as returned by reads. External layers need no
-        resolution, so status is always RESOLVED.
-      required:
-        - type
-        - status
-        - details
-      properties:
-        type:
-          type: string
-          enum:
-            - EXTERNAL
-        status:
-          type: string
-          enum:
-            - RESOLVED
-        details:
-          $ref: '#/components/schemas/externalLayerDetails'
-    basemapLayerSourceInput:
-      description: >-
-        A Basemap layer's source, as accepted by POST/PUT.
-      oneOf:
-        - $ref: '#/components/schemas/catalogResourceLayerSource'
-        - $ref: '#/components/schemas/externalLayerSource'
-      discriminator:
-        propertyName: type
-        mapping:
-          CATALOG_RESOURCE: '#/components/schemas/catalogResourceLayerSource'
-          EXTERNAL: '#/components/schemas/externalLayerSource'
-    basemapLayerSourceOutput:
-      description: >-
-        A Basemap layer's source, as returned by reads, write responses and the
-        import review.
-      oneOf:
-        - $ref: '#/components/schemas/catalogResourceLayerSourceOutput'
-        - $ref: '#/components/schemas/externalLayerSourceOutput'
-      discriminator:
-        propertyName: type
-        mapping:
-          CATALOG_RESOURCE: '#/components/schemas/catalogResourceLayerSourceOutput'
-          EXTERNAL: '#/components/schemas/externalLayerSourceOutput'
-    basemapLayerInput:
-      type: object
-      required:
-        - id
-        - order
-        - opacity
-        - source
-      properties:
-        id:
-          type: string
-        order:
-          type: integer
-          minimum: 0
-        opacity:
-          type: number
-          minimum: 0
-          maximum: 1
-        shouldBeUsedInModelDraping:
-          type: boolean
-          description: >-
-            Only meaningful for layer sources eligible for 3D model draping.
-            Omitted entirely for ineligible sources - never sent as
-            false/disabled.
-        source:
-          $ref: '#/components/schemas/basemapLayerSourceInput'
-    basemapLayerOutput:
-      type: object
-      required:
-        - id
-        - order
-        - opacity
-        - source
-      properties:
-        id:
-          type: string
-        order:
-          type: integer
-          minimum: 0
-        opacity:
-          type: number
-          minimum: 0
-          maximum: 1
-        shouldBeUsedInModelDraping:
-          type: boolean
-        source:
-          $ref: '#/components/schemas/basemapLayerSourceOutput'
-    basemap:
-      type: object
-      required:
-        - id
-        - name
-        - thumbnail
-        - isCurrent
-        - isForPreview
-        - layers
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-          minLength: 1
-        thumbnail:
-          $ref: '#/components/schemas/basemapThumbnail'
-        isCurrent:
-          type: boolean
-          description: >-
-            At most one Basemap may have isCurrent=true. Default for the Cesium
-            map viewer.
-        isForPreview:
-          type: boolean
-          description: >-
-            At most one Basemap may have isForPreview=true. Default for
-            OpenLayers preview viewers. Independent of isCurrent.
-        layers:
-          type: array
-          items:
-            $ref: '#/components/schemas/basemapLayerOutput'
-    basemapWriteInput:
-      type: object
-      description: >-
-        Same shape as a persisted Basemap, minus the server-assigned id. Catalog
-        layer sources are references (no status, layer or capabilities).
-      required:
-        - name
-        - thumbnail
-        - isCurrent
-        - isForPreview
-        - layers
-      properties:
-        name:
-          type: string
-          minLength: 1
-        thumbnail:
-          $ref: '#/components/schemas/basemapThumbnail'
-        isCurrent:
-          type: boolean
-        isForPreview:
-          type: boolean
-        layers:
-          type: array
-          items:
-            $ref: '#/components/schemas/basemapLayerInput'
-    importReviewLayer:
-      description: >
-        One layer of an imported package, resolved against this environment
-        exactly like a GET. A catalog source with status UNRESOLVED carries the
-        dangling reference the user must resolve/replace or remove before saving.
-      allOf:
-        - $ref: '#/components/schemas/basemapLayerOutput'
-    importReviewRoleConflict:
-      type: object
-      required:
-        - basemapId
-        - basemapName
-      properties:
-        basemapId:
-          type: string
-        basemapName:
-          type: string
-    importReview:
-      type: object
-      description: >-
-        A draft/review model. It is never itself persisted and must never be
-        accepted by the Basemap write endpoints.
-      required:
-        - name
-        - isCurrent
-        - isForPreview
-        - thumbnail
-        - layers
-      properties:
-        name:
-          type: string
-        isCurrent:
-          type: boolean
-        isForPreview:
-          type: boolean
-        currentRoleConflict:
-          description: >-
-            Present when isCurrent=true and another Basemap currently owns that
-            role.
-          allOf:
-            - $ref: '#/components/schemas/importReviewRoleConflict'
-        previewRoleConflict:
-          description: >-
-            Present when isForPreview=true and another Basemap currently owns
-            that role.
-          allOf:
-            - $ref: '#/components/schemas/importReviewRoleConflict'
-        thumbnail:
-          type: object
-          required:
-            - included
-          properties:
-            included:
-              type: boolean
-            width:
-              type: integer
-            height:
-              type: integer
-            mimeType:
-              type: string
-            dataBase64:
-              type: string
-              description: >-
-                The thumbnail binary, base64-encoded, for direct use as
-                in-memory editor state. Present only when included=true.
-        layers:
-          type: array
-          items:
-            $ref: '#/components/schemas/importReviewLayer'
