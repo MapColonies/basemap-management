@@ -3,6 +3,7 @@ import { Domain } from '@map-colonies/types';
 import { SourceType } from '@map-colonies/app-shared';
 import { ValidationError } from '@common/errors';
 import { sniffImage } from '../thumbnails/imageFormat';
+import { findLayerConflicts } from '../models/basemapInvariants';
 import { PROTOCOLS, THUMBNAIL_DIMENSION_PIXELS } from '../models/types';
 import type { BasemapLayerInput, ImportPackageThumbnail, PortableBasemap } from '../models/types';
 
@@ -110,6 +111,10 @@ function assertValidPortableBasemap(manifest: unknown): asserts manifest is Port
     throw new ValidationError('basemap.json is missing a layers array');
   }
   candidate.layers.forEach(assertValidPortableLayer);
+  const layerConflicts = findLayerConflicts(candidate.layers as BasemapLayerInput[]);
+  if (layerConflicts.length > 0) {
+    throw new ValidationError(`basemap.json has conflicting layers: ${layerConflicts.join('; ')}`);
+  }
 }
 
 async function readBasemapPackage(archiveBuffer: Buffer): Promise<IParsedBasemapPackage> {

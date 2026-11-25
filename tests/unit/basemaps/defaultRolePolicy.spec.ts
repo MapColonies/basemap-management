@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyDefaultRoles, assertSingleOwnerPerRole, findCurrentOwner, findPreviewOwner } from '@src/basemaps/models/defaultRolePolicy';
+import { applyDefaultRoles, findCurrentOwner, findPreviewOwner } from '@src/basemaps/models/defaultRolePolicy';
 import type { PersistedBasemap } from '@src/basemaps/models/types';
 
 function makeBasemap(overrides: Partial<PersistedBasemap> & Pick<PersistedBasemap, 'id'>): PersistedBasemap {
@@ -58,26 +58,6 @@ describe('defaultRolePolicy', () => {
 
       expect(findCurrentOwner(next)).toBeUndefined();
       expect(findPreviewOwner(next)).toBeUndefined();
-    });
-  });
-
-  describe('#assertSingleOwnerPerRole', () => {
-    it('does not throw when at most one basemap owns each role', () => {
-      const basemaps = [makeBasemap({ id: 'a', isCurrent: true }), makeBasemap({ id: 'b', isForPreview: true })];
-
-      expect(() => assertSingleOwnerPerRole(basemaps)).not.toThrow();
-    });
-
-    it('throws when two basemaps both have isCurrent=true', () => {
-      const basemaps = [makeBasemap({ id: 'a', isCurrent: true }), makeBasemap({ id: 'b', isCurrent: true })];
-
-      expect(() => assertSingleOwnerPerRole(basemaps)).toThrow(/isCurrent/);
-    });
-
-    it('throws when two basemaps both have isForPreview=true', () => {
-      const basemaps = [makeBasemap({ id: 'a', isForPreview: true }), makeBasemap({ id: 'b', isForPreview: true })];
-
-      expect(() => assertSingleOwnerPerRole(basemaps)).toThrow(/isForPreview/);
     });
   });
 });

@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { PersistedBasemapSchema, type PersistedBasemap } from '@map-colonies/app-shared';
 import { MOCK_PERSISTED_BASEMAPS } from '@src/basemaps/mock/mockBasemaps';
+import { findCollectionConflicts, findLayerConflicts } from '@src/basemaps/models/basemapInvariants';
 import {
   SCHEMA_FILE,
   SCHEMA_ID,
@@ -110,6 +111,36 @@ const UNKNOWN_KEY_CONFIGS: [string, unknown][] = [
   ['a source mixing both branches', withLayer({ ...externalLayer, source: { ...externalLayer.source, domain: 'RASTER', uniqueness: {} } })],
 ];
 
+const roleBasemap = (id: string, isCurrent: boolean, isForPreview: boolean): Record<string, unknown> => basemapWith({ id, isCurrent, isForPreview });
+
+const ROLE_CONFIGS: [string, { basemaps: unknown[] }, boolean][] = [
+  ['no current and no preview basemap', { basemaps: [roleBasemap('a', false, false), roleBasemap('b', false, false)] }, true],
+  ['one current basemap', { basemaps: [roleBasemap('a', true, false), roleBasemap('b', false, false)] }, true],
+  ['one preview basemap', { basemaps: [roleBasemap('a', false, true), roleBasemap('b', false, false)] }, true],
+  ['one basemap both current and for preview', { basemaps: [roleBasemap('a', true, true), roleBasemap('b', false, false)] }, true],
+  ['one current and a different preview basemap', { basemaps: [roleBasemap('a', true, false), roleBasemap('b', false, true)] }, true],
+  ['two current basemaps', { basemaps: [roleBasemap('a', true, false), roleBasemap('b', true, false)] }, false],
+  ['two preview basemaps', { basemaps: [roleBasemap('a', false, true), roleBasemap('b', false, true)] }, false],
+  ['two current basemaps, one of them also for preview', { basemaps: [roleBasemap('a', true, true), roleBasemap('b', true, false)] }, false],
+  ['two preview basemaps, one of them also current', { basemaps: [roleBasemap('a', true, true), roleBasemap('b', false, true)] }, false],
+  ['three current basemaps', { basemaps: ['a', 'b', 'c'].map((id) => roleBasemap(id, true, false)) }, false],
+];
+
+const twoLayers = (second: Record<string, unknown>): unknown[] => [catalogLayer, { ...catalogLayer, ...second }];
+
+const BMM_ONLY_INVARIANTS: [string, { basemaps: Record<string, unknown>[] }][] = [
+  ['duplicate basemap ids', { basemaps: [roleBasemap('a', false, false), roleBasemap('a', false, false)] }],
+  ['duplicate layer ids within a basemap', { basemaps: [basemapWith({ layers: twoLayers({ order: catalogLayer.order + 1 }) })] }],
+  ['duplicate layer orders within a basemap', { basemaps: [basemapWith({ layers: twoLayers({ id: 'other' }) })] }],
+];
+
+function bmmConflicts(config: { basemaps: unknown[] }): string[] {
+  return [
+    ...findCollectionConflicts(config.basemaps),
+    ...config.basemaps.flatMap((basemap) => findLayerConflicts((basemap as PersistedBasemap).layers)),
+  ];
+}
+
 const KNOWN_GAPS: [string, unknown][] = [
   ['a blank (whitespace-only) name', { basemaps: [basemapWith({ name: '   ' })] }],
   ['a blank thumbnail url', { basemaps: [basemapWith({ thumbnail: { url: ' ', width: 128, height: 128 } })] }],
@@ -147,10 +178,11 @@ const CLOSED_OBJECTS = [
   `${SOURCE}/anyOf/1`,
 ];
 const OPEN_OBJECTS = [`${SOURCE}/anyOf/1/properties/details`];
+const MATCHER_OBJECTS = ['/properties/basemaps/allOf/0/contains', '/properties/basemaps/allOf/1/contains'];
 
 describe('basemaps config JSON Schema (config-server)', () => {
   describe('generation', () => {
-    it('should match the committed scripts/v1.schema.json (run `npm run generate:config-server-schema` if this fails)', async () => {
+    it('should match the committed schemas/v1.schema.json (run `npm run generate:config-server-schema` if this fails)', async () => {
       const generated = await serializeBasemapsConfigJsonSchema(buildBasemapsConfigJsonSchema());
 
       expect(readFileSync(SCHEMA_FILE, 'utf8')).toBe(generated);
@@ -199,7 +231,11 @@ describe('basemaps config JSON Schema (config-server)', () => {
     const objects = collectObjectSchemas(committedSchema);
 
     it('should list every object schema as either closed or open', () => {
-      expect([...objects.keys()].sort()).toEqual([...CLOSED_OBJECTS, ...OPEN_OBJECTS].sort());
+      expect([...objects.keys()].sort()).toEqual([...CLOSED_OBJECTS, ...OPEN_OBJECTS, ...MATCHER_OBJECTS].sort());
+    });
+
+    it.each(MATCHER_OBJECTS)('should leave the role matcher at "%s" without additionalProperties', (pointer) => {
+      expect(objects.get(pointer)).not.toHaveProperty('additionalProperties');
     });
 
     it.each(CLOSED_OBJECTS)('should close the object at "%s" (additionalProperties: false)', (pointer) => {
@@ -232,6 +268,35 @@ describe('basemaps config JSON Schema (config-server)', () => {
       expect(parsed.success).toBe(true);
       expect(jsonSchemaAccepts(config)).toBe(false);
       expect(jsonSchemaAccepts(parsed.data)).toBe(true);
+    });
+
+    it('should compile without strict-mode warnings', () => {
+      const warnings: unknown[] = [];
+      const logger = {
+        log: (): void => undefined,
+        warn: (...args: unknown[]): number => warnings.push(args),
+        error: (...args: unknown[]): number => warnings.push(args),
+      };
+      const ajv = addFormats(new Ajv2019({ keywords: ['x-env-value', 'x-env-format'], discriminator: true, useDefaults: true, logger }));
+
+      ajv.compile(committedSchema);
+
+      expect(warnings).toEqual([]);
+    });
+
+    it.each(ROLE_CONFIGS)(
+      'should enforce at most one isCurrent / isForPreview: %s (accepted: %s), as basemap-management does',
+      (_name, config, accepted) => {
+        expect(StoredConfigSchema.safeParse(config).success).toBe(true);
+        expect(jsonSchemaAccepts(config)).toBe(accepted);
+        expect(findCollectionConflicts(config.basemaps).length === 0).toBe(accepted);
+      }
+    );
+
+    it.each(BMM_ONLY_INVARIANTS)('should accept %s, which only basemap-management rejects', (_name, config) => {
+      expect(StoredConfigSchema.safeParse(config).success).toBe(true);
+      expect(jsonSchemaAccepts(config)).toBe(true);
+      expect(bmmConflicts(config)).not.toEqual([]);
     });
 
     it.each(KNOWN_GAPS)('should accept %s, which only basemap-management rejects (Zod refinement)', (_name, config) => {

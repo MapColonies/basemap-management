@@ -96,7 +96,7 @@ Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/
 | `npm start` | Build and run |
 | `npm run build` | Clean, regenerate OpenAPI types, compile to `dist/`, copy assets |
 | `npm run generate:openapi-types` | Regenerate `src/openapi.d.ts` from `openapi3.yaml`. Run after any OpenAPI change. |
-| `npm run generate:config-server-schema` | Regenerate the config-server JSON Schema `scripts/v1.schema.json` from the Zod schemas, see [Config-server schema](#config-server-schema) |
+| `npm run generate:config-server-schema` | Regenerate the config-server JSON Schema `schemas/v1.schema.json` from the Zod schemas, see [Config-server schema](#config-server-schema) |
 | `npm run lint` / `lint:fix` | ESLint (runs Prettier check/fix first) |
 | `npm run format` / `format:fix` | Prettier check / write |
 | `npm run lint:openapi` | Lint `openapi3.yaml` with Redocly |
@@ -224,7 +224,7 @@ Liveness: `GET /liveness` (served at the root, outside `/basemaps`).
 ### Write rules
 
 - `name` non-empty; `thumbnail.url` non-empty; `opacity` between 0 and 1; `order` integer >= 0.
-- Layer `id` and `order` must each be unique within a Basemap.
+- Layer `id` and `order` must each be unique within a Basemap (the same values in different Basemaps are fine). A violation is a `400` naming the values and layers, e.g. `duplicate layer order 2 (layers "a", "b")`. The same check applies to an import package (`basemap.json has conflicting layers: ...`).
 - Catalog layers need a non-empty `uniqueness.productId` and a known `productType` (`Orthophoto`, `OrthophotoHistory`, `OrthophotoBest`, `RasterMap`, `RasterMapBest`, `RasterAid`, `RasterAidBest`, `RasterVector`, `RasterVectorBest`).
 - External layers need `protocol` (`XYZ`, `WMTS`, `WMS`, `OSM`), `name` and `url`.
 - **Default roles:** at most one Basemap has `isCurrent=true` and at most one has `isForPreview=true`. Setting a flag to `true` on create or update clears it from the previous owner in the same write. The two flags are independent.
@@ -301,19 +301,32 @@ interface BasemapLayerBase {
 
 ### Persistence and concurrency
 
-Each write reads the latest document, applies the change, checks the role invariant, and POSTs it with the version it was read at (`1` for a new document); config-server stores it as the next version and rejects a stale base version with `409`. A `404` from config-server on read is treated as an empty list. Writes within one process are serialized by an in-memory queue. There is no cross-replica lock: concurrent writes from different replicas rely on that `409` (any non-2xx reply becomes a `502`). Treat the Helm default of one replica as the safe setting.
+Each write reads the latest document, applies the change, checks the collection invariants on the exact document it is about to send (see [Stored-document invariants](#stored-document-invariants)), and POSTs it with the version it was read at (`1` for a new document); config-server stores it as the next version and rejects a stale base version with `409`. A `404` from config-server on read is treated as an empty list. Writes within one process are serialized by an in-memory queue. There is no cross-replica lock: concurrent writes from different replicas rely on that `409` (any non-2xx reply becomes a `502`). Treat the Helm default of one replica as the safe setting.
+
+### Stored-document invariants
+
+Defined once in `src/basemaps/models/basemapInvariants.ts` (`findLayerConflicts`, `findCollectionConflicts`) and reused by the write, read and import flows:
+
+| Invariant | Client input / import package | Stored document on read | Before every save | config-server JSON Schema |
+| --- | --- | --- | --- | --- |
+| Unique layer `id` / `order` within a Basemap | `400` | Basemap treated as corrupt: skipped by list, `500` on get | `500`, not saved | Not expressible |
+| Unique Basemap `id` | Server-assigned, cannot conflict | Logged; get / update / delete of the duplicated id fail with `500` (ambiguous) | `500`, not saved | Not expressible |
+| At most one `isCurrent=true` / `isForPreview=true` (independently) | Resolved automatically (previous owner cleared) | Logged | `500`, not saved | Enforced (`contains` + `maxContains: 1`) |
+
+The pre-save check runs on the complete outgoing document, including stored entries that fail structural validation (they are kept and re-sent, never repaired or dropped). A stored document that already breaks an invariant therefore blocks writes with `CorruptPersistedDataError` (`500`) naming the conflicting ids, until it is fixed in config-server - except a write that claims the conflicting role on a valid Basemap, which the automatic role reassignment resolves.
 
 ### Config-server schema
 
 config-server validates every write against the JSON Schema registered for `configServer.schemaId` in the [`@map-colonies/schemas`](https://github.com/MapColonies/schemas) package it has installed (`https://mapcolonies.com/common/basemaps/v1` = `schemas/common/basemaps/v1.schema.json` there). The schema describes the stored document above - `{ "basemaps": PersistedBasemap[] }`, the `config` field of the config-server request, not the request envelope.
 
-This service owns the schema: `npm run generate:config-server-schema` (`scripts/generateConfigServerSchema.mts`) converts the `@map-colonies/app-shared` Zod schemas (`PersistedBasemapSchema`) with [`zod-to-json-schema`](https://github.com/StefanTerdell/zod-to-json-schema) (draft 2019-09, fully inlined) and writes `scripts/v1.schema.json`, which is committed. A unit test (`tests/unit/scripts/generateConfigServerSchema.spec.ts`) fails when the committed file no longer matches the Zod schemas, when its `$id` differs from `configServer.schemaId` in `config/default.json` / `helm/values.yaml`, or when config-server's validator (Ajv, draft 2019-09, same options) would accept or reject a fixture differently from what is described below.
+This service owns the schema: `npm run generate:config-server-schema` (`scripts/generateConfigServerSchema.mts`) converts the `@map-colonies/app-shared` Zod schemas (`PersistedBasemapSchema`) with [`zod-to-json-schema`](https://github.com/StefanTerdell/zod-to-json-schema) (draft 2019-09, fully inlined) and writes `schemas/v1.schema.json`, which is committed. A unit test (`tests/unit/scripts/generateConfigServerSchema.spec.ts`) fails when the committed file no longer matches the Zod schemas, when its `$id` differs from `configServer.schemaId` in `config/default.json` / `helm/values.yaml`, or when config-server's validator (Ajv, draft 2019-09, same options) would accept or reject a fixture differently from what is described below.
 
 - **Unknown keys:** every object is closed (`additionalProperties: false`) except an external layer's `details`, which is `.passthrough()` in Zod and keeps provider-specific keys (`additionalProperties: true`). Zod's default objects _strip_ unknown keys rather than reject them, so the schema is stricter than Zod's input check but matches what this service stores: writes persist Zod's parsed output (`validateBasemapWriteInput`), never the raw request body.
 
-- **Publish a change:** copy the generated file unchanged to `schemas/common/basemaps/v1.schema.json` in the `schemas` repository, run `npm run validate` there and release it; config-server picks it up when it is upgraded to that `@map-colonies/schemas` version.
+- **Publish a change:** copy the generated content to `schemas/common/basemaps/v1.schema.json` in the `schemas` repository (that copy keeps its `$schema` line and 2-space formatting; the content must otherwise be identical), run `npm run validate` there and release it; config-server picks it up when it is upgraded to that `@map-colonies/schemas` version.
 - **Versioning:** a released schema file must not change (the `schemas` repository enforces this). If the persisted model changes after `v1` is released, bump the version in `configServer.schemaId` (`config/default.json`, which the generator reads for `$id`; `title` comes from `configServer.configName`) and `helm/values.yaml`, rename the output file in `scripts/generateConfigServerSchema.mts`, and add the new file to `schemas`. config-server keeps configs per `schemaId`: the `basemaps` document stored under `v1` is not returned for `v2`, so the switch needs a migration step (write the current document, converted, as version 1 under the new `schemaId`). A config name cannot move to a schema with a different path, only to a new version of the same one.
-- **Not in the schema:** rules JSON Schema cannot express - Zod refinements (non-blank `name`, `thumbnail.url`, external `details.name` / `details.url`) and the write rules (unique layer ids and orders, a single owner per role, unique basemap ids). They are enforced only by this service; a document written directly to config-server that breaks them is accepted there, and the affected basemaps are skipped on read (see above).
+- **Single owner per role:** added by the generator (Zod refinements are not translated by `zod-to-json-schema`) as `allOf` on `basemaps`, one `{ contains: { isCurrent|isForPreview: const true }, minContains: 0, maxContains: 1 }` branch per flag, so zero or one owner is valid, more is rejected, and one Basemap may own both roles. Verified against config-server's validator (`ajv/dist/2019`, Ajv 8), which supports these draft 2019-09 keywords.
+- **Not in the schema:** rules JSON Schema cannot express - Zod refinements (non-blank `name`, `thumbnail.url`, external `details.name` / `details.url`) and uniqueness by property (Basemap ids, layer ids and orders; `uniqueItems` compares whole items). They are enforced only by this service; a document written directly to config-server that breaks them is accepted there and handled as described in [Stored-document invariants](#stored-document-invariants).
 
 ## Testing
 

@@ -353,6 +353,7 @@ describe('BASEMAP_MOCK_DATA', () => {
       });
 
       expect(invalidResponse.status).toBe(httpStatusCodes.BAD_REQUEST);
+      expect(invalidResponse.body).toMatchObject({ message: expect.stringContaining('duplicate layer order') as unknown });
 
       expect((await requestSender.deleteBasemap({ pathParams: { basemapId: created.id } })).status).toBe(httpStatusCodes.NO_CONTENT);
       expect((await requestSender.listBasemaps()).body as unknown[]).toHaveLength(MOCK_PERSISTED_BASEMAPS.length);

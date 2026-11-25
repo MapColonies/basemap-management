@@ -5,7 +5,8 @@ import { SourceType } from '@map-colonies/app-shared';
 import { SERVICES } from '@common/constants';
 import { CorruptPersistedDataError, NotFoundError } from '@common/errors';
 import { CONFIG_SERVER_CLIENT, type IConfigServerClient, type IConfigServerDocument } from '@src/clients/configServer/configServerClient';
-import { applyDefaultRoles, assertSingleOwnerPerRole } from './defaultRolePolicy';
+import { applyDefaultRoles } from './defaultRolePolicy';
+import { findCollectionConflicts, findLayerConflicts } from './basemapInvariants';
 import { validateBasemapWriteInput } from './basemapValidation';
 import { splitPersistedBasemaps } from './persistedBasemapValidation';
 import { CatalogResourceResolver, type SourceResolver } from './catalogResourceResolver';
@@ -30,6 +31,7 @@ class BasemapsManager {
   public async listPersisted(): Promise<PersistedBasemap[]> {
     const { document } = await this.configServerClient.getLatest();
     const { valid } = splitPersistedBasemaps(document.basemaps, this.logger);
+    this.warnOnCollectionConflicts(document.basemaps);
     return valid;
   }
 
@@ -60,7 +62,8 @@ class BasemapsManager {
   public async update(id: string, rawInput: BasemapWriteInput): Promise<Basemap> {
     const input = validateBasemapWriteInput(rawInput);
 
-    const updated = await this.mutate((basemaps) => {
+    const updated = await this.mutate((basemaps, rawEntries) => {
+      assertUnambiguousId(rawEntries, id);
       if (!basemaps.some((candidate) => candidate.id === id)) {
         throw new NotFoundError(`basemap "${id}" was not found`);
       }
@@ -73,7 +76,8 @@ class BasemapsManager {
   }
 
   public async remove(id: string): Promise<void> {
-    await this.mutate((basemaps) => {
+    await this.mutate((basemaps, rawEntries) => {
+      assertUnambiguousId(rawEntries, id);
       if (!basemaps.some((candidate) => candidate.id === id)) {
         throw new NotFoundError(`basemap "${id}" was not found`);
       }
@@ -85,6 +89,8 @@ class BasemapsManager {
   private async getPersistedById(id: string): Promise<PersistedBasemap> {
     const { document } = await this.configServerClient.getLatest();
     const { valid, invalidIds } = splitPersistedBasemaps(document.basemaps, this.logger);
+    this.warnOnCollectionConflicts(document.basemaps);
+    assertUnambiguousId(document.basemaps, id);
 
     const basemap = valid.find((candidate) => candidate.id === id);
     if (basemap) {
@@ -113,13 +119,25 @@ class BasemapsManager {
     return { id: layer.id, order: layer.order, opacity: layer.opacity, shouldBeUsedInModelDraping: layer.shouldBeUsedInModelDraping, source };
   }
 
-  private async mutate<T>(fn: (basemaps: PersistedBasemap[]) => { next: PersistedBasemap[]; result: T }): Promise<T> {
+  private warnOnCollectionConflicts(rawEntries: readonly unknown[]): void {
+    const conflicts = findCollectionConflicts(rawEntries);
+    if (conflicts.length > 0) {
+      this.logger.warn({ msg: 'stored basemaps document violates collection invariants', conflicts });
+    }
+  }
+
+  /**
+   * Runs `fn` on the latest document and saves the result. The invariants are checked on the exact document sent to
+   * config-server (including stored entries that failed structural validation), never repaired automatically.
+   */
+  private async mutate<T>(fn: (basemaps: PersistedBasemap[], rawEntries: readonly unknown[]) => { next: PersistedBasemap[]; result: T }): Promise<T> {
     const run = async (): Promise<T> => {
       const { document, version } = await this.configServerClient.getLatest();
       const { valid, invalidRaw } = splitPersistedBasemaps(document.basemaps, this.logger);
-      const { next, result } = fn(valid);
-      assertSingleOwnerPerRole(next);
-      await this.configServerClient.save({ basemaps: [...invalidRaw, ...next] } as IConfigServerDocument, version);
+      const { next, result } = fn(valid, document.basemaps);
+      const outgoing = [...invalidRaw, ...next];
+      assertDocumentInvariants(next, outgoing);
+      await this.configServerClient.save({ basemaps: outgoing } as IConfigServerDocument, version);
       return result;
     };
 
@@ -142,6 +160,23 @@ function toPersistedLayer({ id, order, opacity, shouldBeUsedInModelDraping, sour
         }
       : { type: source.type, details: source.details };
   return { id, order, opacity, shouldBeUsedInModelDraping, source: persistedSource };
+}
+
+function assertUnambiguousId(rawEntries: readonly unknown[], id: string): void {
+  const matches = rawEntries.filter((entry) => (entry as { id?: unknown } | null)?.id === id).length;
+  if (matches > 1) {
+    throw new CorruptPersistedDataError(`basemap "${id}" is ambiguous: the stored document has ${matches} entries with this id`);
+  }
+}
+
+function assertDocumentInvariants(next: readonly PersistedBasemap[], outgoing: readonly unknown[]): void {
+  const conflicts = [
+    ...findCollectionConflicts(outgoing),
+    ...next.flatMap((basemap) => findLayerConflicts(basemap.layers).map((conflict) => `basemap "${basemap.id}": ${conflict}`)),
+  ];
+  if (conflicts.length > 0) {
+    throw new CorruptPersistedDataError(`refusing to save the basemaps document, it violates its invariants: ${conflicts.join('; ')}`);
+  }
 }
 
 function getOrThrow(basemaps: PersistedBasemap[], id: string): PersistedBasemap {

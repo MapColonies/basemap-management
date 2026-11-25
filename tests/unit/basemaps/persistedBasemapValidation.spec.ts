@@ -53,6 +53,30 @@ describe('splitPersistedBasemaps', () => {
     expect(Array.isArray(loggedArg.issues)).toBe(true);
   });
 
+  it.each([
+    ['ids', { id: 'layer-1', order: 1 }],
+    ['orders', { id: 'layer-2', order: 0 }],
+  ])('treats a stored basemap with duplicate layer %s as invalid and logs the conflict', (_name, layerKey) => {
+    const entry = validEntry('dup-layers');
+    entry.layers = [entry.layers[0]!, { ...entry.layers[0]!, ...layerKey }];
+    const logger = fakeLogger();
+
+    const { valid, invalidRaw, invalidIds } = splitPersistedBasemaps([validEntry('good'), entry], logger);
+
+    expect(valid.map((basemap) => basemap.id)).toEqual(['good']);
+    expect(invalidRaw).toEqual([entry]);
+    expect(invalidIds.has('dup-layers')).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ basemapId: 'dup-layers', issues: [expect.stringMatching(/^duplicate layer (id|order)/)] })
+    );
+  });
+
+  it('accepts the same layer ids and orders in different basemaps', () => {
+    const { valid } = splitPersistedBasemaps([validEntry('a'), validEntry('b')], fakeLogger());
+
+    expect(valid).toHaveLength(2);
+  });
+
   it('still logs a resolvable index placeholder when even the id cannot be read', () => {
     const bad = { not: 'a basemap at all' };
     const logger = fakeLogger();

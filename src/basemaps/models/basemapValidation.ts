@@ -1,22 +1,16 @@
 import { SourceType, BasemapWriteInputSchema } from '@map-colonies/app-shared';
 import { ValidationError } from '@common/errors';
+import { findLayerConflicts } from './basemapInvariants';
 import { PROTOCOLS } from './types';
 import type { BasemapLayerInput, BasemapWriteInput } from './types';
 
 function validateBusinessRules(input: BasemapWriteInput): void {
-  const seenIds = new Set<string>();
-  const seenOrders = new Set<number>();
+  const layerConflicts = findLayerConflicts(input.layers);
+  if (layerConflicts.length > 0) {
+    throw new ValidationError(layerConflicts.join('; '));
+  }
+
   for (const layer of input.layers) {
-    if (seenIds.has(layer.id)) {
-      throw new ValidationError(`duplicate layer id "${layer.id}"`);
-    }
-    seenIds.add(layer.id);
-
-    if (seenOrders.has(layer.order)) {
-      throw new ValidationError(`duplicate layer order "${layer.order}"`);
-    }
-    seenOrders.add(layer.order);
-
     if (layer.source.type === SourceType.EXTERNAL && !PROTOCOLS.includes(layer.source.details.protocol)) {
       throw new ValidationError(`layer "${layer.id}" has an unknown protocol "${layer.source.details.protocol}"`);
     }
