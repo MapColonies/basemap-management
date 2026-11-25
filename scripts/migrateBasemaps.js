@@ -16,6 +16,9 @@
  *
  * A basemap whose baseRasterLayers is empty (or missing) is omitted from the output entirely and
  * logged (with its id and title) instead of being migrated as a basemap with zero layers.
+ *
+ * baseRasterLayers[N].type may carry a `_LAYER` suffix (e.g. `XYZ_LAYER`) in the old format; it's
+ * stripped before the WMTS check and before being used as the migrated layer's protocol.
  */
 
 const fs = require('node:fs');
@@ -25,6 +28,12 @@ const { Domain, OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType } = req
 
 const PROTOCOLS = new Set([...Object.values(OGC_ImageryProtocolType), ...Object.values(PROPRIETARY_ImageryProtocolType)]);
 const TILE_MATRIX_SET_TOKEN = '{TileMatrixSet}';
+const LAYER_TYPE_SUFFIX = '_LAYER';
+
+/** The old format's baseRasterLayers[N].type may be suffixed with `_LAYER` (e.g. `XYZ_LAYER`); strip it. */
+function normalizeLayerType(type) {
+  return type.endsWith(LAYER_TYPE_SUFFIX) ? type.slice(0, -LAYER_TYPE_SUFFIX.length) : type;
+}
 
 function parseArgs(argv) {
   const args = { input: undefined, output: undefined, resolveWmtsAsExternal: undefined };
@@ -107,7 +116,8 @@ function migrateLayerAsExternal(oldLayer, protocol, warnings) {
 }
 
 function migrateLayer(oldLayer, { resolveWmtsAsExternal }, warnings) {
-  if (oldLayer.type === 'WMTS' && !resolveWmtsAsExternal) {
+  const layerType = normalizeLayerType(oldLayer.type);
+  if (layerType === 'WMTS' && !resolveWmtsAsExternal) {
     const { productId, productType } = parseProductFromWmtsUrl(oldLayer.options?.url ?? '');
     if (productId === null || productType === null) {
       warnings.push(`layer "${oldLayer.id}" has a WMTS url that could not be parsed into productId/productType - left unresolved`);
@@ -125,7 +135,7 @@ function migrateLayer(oldLayer, { resolveWmtsAsExternal }, warnings) {
     };
   }
 
-  return migrateLayerAsExternal(oldLayer, oldLayer.type, warnings);
+  return migrateLayerAsExternal(oldLayer, layerType, warnings);
 }
 
 function migrateBasemap(oldBasemap, options, warnings) {
