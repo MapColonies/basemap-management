@@ -1,7 +1,7 @@
 import { Domain, ProductType } from '@map-colonies/types';
 import { SourceType, type CatalogResourceLayerSource, type PersistedBasemap } from '@map-colonies/app-shared';
 
-const MOCK_CATALOG_PRODUCT = { productId: 'MADRID_HEXAGON', productType: ProductType.ORTHOPHOTO } as const;
+const MOCK_CATALOG_PRODUCT = { productId: 'AYOSH_SOUTH_Z19', productType: ProductType.ORTHOPHOTO } as const;
 
 const MOCK_THUMBNAIL = {
   url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAAw0lEQVR42u3RMQEAAAzCMPyrQSIytiOV0KQ6LRYAACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAAAEAAAAgBAAAAIAAABACAAAAQAgAB8aFsnB72+Q3bTAAAAAElFTkSuQmCC',
@@ -18,7 +18,7 @@ const CATALOG_SOURCE: CatalogResourceLayerSource = {
 const UNKNOWN_CATALOG_SOURCE: CatalogResourceLayerSource = {
   type: SourceType.CATALOG_RESOURCE,
   domain: Domain.RASTER,
-  uniqueness: { productId: 'Unknown_Mock_Product', productType: MOCK_CATALOG_PRODUCT.productType },
+  uniqueness: { productId: 'NOT_EXISTING_LAYER', productType: MOCK_CATALOG_PRODUCT.productType },
 };
 
 const MOCK_PERSISTED_BASEMAPS: PersistedBasemap[] = [
