@@ -219,7 +219,8 @@ components:
       description: >
         Configuration for an externally-served layer. `protocol`/`name`/`url`
         are the only fields this service interprets; additional
-        provider-specific keys are accepted and stored as-is.
+        provider-specific keys go under `extras` and are accepted and stored
+        as-is.
       required:
         - protocol
         - name
@@ -231,7 +232,13 @@ components:
           type: string
         url:
           type: string
-      additionalProperties: true
+        extras:
+          type: object
+          description: >-
+            Provider-specific extra fields not covered by
+            protocol/name/url (e.g. WMTS/XYZ options)
+          properties: {}
+          additionalProperties: true
     externalLayerSource:
       type: object
       description: >-

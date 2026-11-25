@@ -108,10 +108,16 @@
                             },
                             "url": {
                               "type": "string"
+                            },
+                            "extras": {
+                              "type": "object",
+                              "properties": {},
+                              "additionalProperties": true,
+                              "description": "Provider-specific extra fields not covered by protocol/name/url (e.g. WMTS/XYZ options)"
                             }
                           },
                           "required": ["protocol", "name", "url"],
-                          "additionalProperties": true
+                          "additionalProperties": false
                         }
                       },
                       "required": ["type", "details"],
