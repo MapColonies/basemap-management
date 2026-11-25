@@ -6,5 +6,8 @@
   "yaml.schemas": {
     "./schemas/values.schema.json": ["helm/values.yaml"],
     "./schemas/global.schema.json": ["helm/global.yaml"]
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
   }
 }

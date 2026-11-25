@@ -111,13 +111,13 @@ describe('validateBasemapWriteInput', () => {
     expect(() => validateBasemapWriteInput(input)).toThrow(/url/);
   });
 
-  it('accepts EXTERNAL details carrying additional provider-specific keys', () => {
+  it('accepts EXTERNAL details carrying additional provider-specific keys under extras', () => {
     const input = baseInput();
     input.layers[1] = {
       ...layerAt(input, 1),
       source: {
         type: SourceType.EXTERNAL,
-        details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', layer: 'ortho', matrixSet: 'EPSG:3857' },
+        details: { protocol: 'WMTS', name: 'n', url: 'https://example.com', extras: { layer: 'ortho', matrixSet: 'EPSG:3857' } },
       },
     };
 

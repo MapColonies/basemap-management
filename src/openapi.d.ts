@@ -97,13 +97,15 @@ export type components = {
     };
     /** @description Serving protocol of an external layer. The supported values come from the shared imagery protocol list (`WMS`, `WMTS`, `XYZ`, `OSM`, `MAPBOX_STYLE`, `BING_MAPS`) and are enforced by the service at request-validation time; the schema stays an open string so the list can grow in `@map-colonies/types` without a spec change. */
     protocol: string;
-    /** @description Configuration for an externally-served layer. `protocol`/`name`/`url` are the only fields this service interprets; additional provider-specific keys are accepted and stored as-is. */
+    /** @description Configuration for an externally-served layer. `protocol`/`name`/`url` are the only fields this service interprets; additional provider-specific keys go under `extras` and are accepted and stored as-is. */
     externalLayerDetails: {
       protocol: components['schemas']['protocol'];
       name: string;
       url: string;
-    } & {
-      [key: string]: unknown;
+      /** @description Provider-specific extra fields not covered by protocol/name/url (e.g. WMTS/XYZ options) */
+      extras?: {
+        [key: string]: unknown;
+      };
     };
     /** @description An externally-served layer (not a catalog resource), as accepted by POST/PUT, persisted and exported. */
     externalLayerSource: {
