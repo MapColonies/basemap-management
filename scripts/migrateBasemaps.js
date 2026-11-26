@@ -7,6 +7,9 @@
  *   node scripts/migrateBasemaps.js --input <oldFormat.json> --output <migrated.json> [--resolve-wmts-as-external[=true|false]]
  *
  * --resolve-wmts-as-external (optional, default: false; can also be set via the RESOLVE_WMTS_AS_EXTERNAL env var)
+ *   Given alone (or followed by another option) it means true; an explicit value (`--resolve-wmts-as-external <value>`
+ *   or `--resolve-wmts-as-external=<value>`, and the env var) must be `true` or `false`, case-insensitive - anything
+ *   else is rejected with a usage error (exit code 1) instead of being guessed. The CLI argument wins over the env var.
  *   - true:  WMTS layers are migrated the same way as XYZ layers (source.type = EXTERNAL).
  *   - false: WMTS layers are migrated as CATALOG_RESOURCE sources, with productId/productType
  *            parsed out of the WMTS url's `{productId}-{productType}` path segment (the one
@@ -18,7 +21,13 @@
  * logged (with its id and title) instead of being migrated as a basemap with zero layers.
  *
  * baseRasterLayers[N].type may carry a `_LAYER` suffix (e.g. `XYZ_LAYER`) in the old format; it's
- * stripped before the WMTS check and before being used as the migrated layer's protocol.
+ * stripped before the WMTS check and before being used as the migrated layer's protocol. A layer with a missing,
+ * non-string or blank type is logged (with its basemap and index) and migrated without a protocol, so its basemap
+ * fails schema validation and is dropped from the output like any other invalid basemap.
+ *
+ * EXTERNAL layers keep `options.url` as `details.url`; every other option (e.g. WMTS `layer`/`style`/`format`/
+ * `tileMatrixSetID`, XYZ `maximumLevel`) is kept as-is under `details.extras` - the only place the schema keeps
+ * provider-specific keys (unknown keys directly under `details` are stripped).
  */
 
 const fs = require('node:fs');
@@ -29,10 +38,28 @@ const { Domain, OGC_ImageryProtocolType, PROPRIETARY_ImageryProtocolType } = req
 const PROTOCOLS = new Set([...Object.values(OGC_ImageryProtocolType), ...Object.values(PROPRIETARY_ImageryProtocolType)]);
 const TILE_MATRIX_SET_TOKEN = '{TileMatrixSet}';
 const LAYER_TYPE_SUFFIX = '_LAYER';
+const RESOLVE_WMTS_AS_EXTERNAL_ARG = '--resolve-wmts-as-external';
+const BOOLEAN_VALUES = new Map([
+  ['true', true],
+  ['false', false],
+]);
+const USAGE = 'Usage: node scripts/migrateBasemaps.js --input <oldFormat.json> --output <migrated.json> [--resolve-wmts-as-external[=true|false]]';
 
 /** The old format's baseRasterLayers[N].type may be suffixed with `_LAYER` (e.g. `XYZ_LAYER`); strip it. */
 function normalizeLayerType(type) {
-  return type.endsWith(LAYER_TYPE_SUFFIX) ? type.slice(0, -LAYER_TYPE_SUFFIX.length) : type;
+  if (typeof type !== 'string') {
+    return undefined;
+  }
+  const normalized = type.endsWith(LAYER_TYPE_SUFFIX) ? type.slice(0, -LAYER_TYPE_SUFFIX.length) : type;
+  return normalized.trim().length > 0 ? normalized : undefined;
+}
+
+function parseBoolean(value, source) {
+  const parsed = BOOLEAN_VALUES.get(value.trim().toLowerCase());
+  if (parsed === undefined) {
+    throw new Error(`${source} must be "true" or "false" (case-insensitive), got "${value}"`);
+  }
+  return parsed;
 }
 
 function parseArgs(argv) {
@@ -47,26 +74,27 @@ function parseArgs(argv) {
       args.output = argv[(i += 1)];
     } else if (arg.startsWith('--output=')) {
       args.output = arg.slice('--output='.length);
-    } else if (arg === '--resolve-wmts-as-external') {
+    } else if (arg === RESOLVE_WMTS_AS_EXTERNAL_ARG) {
       const next = argv[i + 1];
-      if (next === 'true' || next === 'false') {
-        args.resolveWmtsAsExternal = next === 'true';
-        i += 1;
-      } else {
+      if (next === undefined || next.startsWith('-')) {
         args.resolveWmtsAsExternal = true;
+      } else {
+        args.resolveWmtsAsExternal = parseBoolean(next, RESOLVE_WMTS_AS_EXTERNAL_ARG);
+        i += 1;
       }
-    } else if (arg.startsWith('--resolve-wmts-as-external=')) {
-      args.resolveWmtsAsExternal = arg.slice('--resolve-wmts-as-external='.length).toLowerCase() === 'true';
+    } else if (arg.startsWith(`${RESOLVE_WMTS_AS_EXTERNAL_ARG}=`)) {
+      args.resolveWmtsAsExternal = parseBoolean(arg.slice(`${RESOLVE_WMTS_AS_EXTERNAL_ARG}=`.length), RESOLVE_WMTS_AS_EXTERNAL_ARG);
     }
   }
   return args;
 }
 
-function parseBooleanEnv(value, defaultValue) {
-  if (value === undefined) {
+function parseBooleanEnv(name, defaultValue) {
+  const value = process.env[name];
+  if (value === undefined || value.trim().length === 0) {
     return defaultValue;
   }
-  return value.trim().toLowerCase() === 'true';
+  return parseBoolean(value, `the ${name} environment variable`);
 }
 
 /**
@@ -99,10 +127,10 @@ function parseProductFromWmtsUrl(url) {
 }
 
 function migrateLayerAsExternal(oldLayer, protocol, warnings) {
-  if (!PROTOCOLS.has(protocol)) {
+  if (protocol !== undefined && !PROTOCOLS.has(protocol)) {
     warnings.push(`layer "${oldLayer.id}" has unrecognized protocol "${protocol}"`);
   }
-  const { url, ...restOptions } = oldLayer.options ?? {};
+  const { url, ...extras } = oldLayer.options ?? {};
   return {
     id: oldLayer.id,
     order: oldLayer.zIndex,
@@ -110,13 +138,20 @@ function migrateLayerAsExternal(oldLayer, protocol, warnings) {
     shouldBeUsedInModelDraping: oldLayer.shouldBeUsedInModelDraping,
     source: {
       type: SourceType.EXTERNAL,
-      details: { protocol, name: oldLayer.id, url, ...restOptions },
+      details: { protocol, name: oldLayer.id, url, ...(Object.keys(extras).length > 0 ? { extras } : {}) },
     },
   };
 }
 
-function migrateLayer(oldLayer, { resolveWmtsAsExternal }, warnings) {
+function migrateLayer(oldLayer, location, { resolveWmtsAsExternal }, warnings) {
   const layerType = normalizeLayerType(oldLayer.type);
+  if (layerType === undefined) {
+    const typeDescription = oldLayer.type === undefined ? 'no type' : `an invalid type ${JSON.stringify(oldLayer.type)}`;
+    warnings.push(
+      `layer "${oldLayer.id}" (${location}) has ${typeDescription} - migrated without a protocol, so its basemap fails schema validation`
+    );
+    return migrateLayerAsExternal(oldLayer, undefined, warnings);
+  }
   if (layerType === 'WMTS' && !resolveWmtsAsExternal) {
     const { productId, productType } = parseProductFromWmtsUrl(oldLayer.options?.url ?? '');
     if (productId === null || productType === null) {
@@ -145,7 +180,9 @@ function migrateBasemap(oldBasemap, options, warnings) {
     isCurrent: oldBasemap.isCurrent ?? false,
     isForPreview: false,
     thumbnail: { url: oldBasemap.thumbnail, width: 128, height: 128 },
-    layers: (oldBasemap.baseRasterLayers ?? []).map((layer) => migrateLayer(layer, options, warnings)),
+    layers: (oldBasemap.baseRasterLayers ?? []).map((layer, index) =>
+      migrateLayer(layer, `basemap "${oldBasemap.title}" (${oldBasemap.id}), baseRasterLayers[${index}]`, options, warnings)
+    ),
   };
 }
 
@@ -159,17 +196,31 @@ function dedupeCurrentOwner(basemaps, warnings) {
   return basemaps.map((basemap) => (basemap.isCurrent && basemap.id !== lastCurrentId ? { ...basemap, isCurrent: false } : basemap));
 }
 
+function failWithUsage(message) {
+  if (message !== undefined) {
+    console.error(`error: ${message}`);
+  }
+  console.error(USAGE);
+  process.exitCode = 1;
+}
+
 function main() {
-  const { input, output, resolveWmtsAsExternal: resolveWmtsAsExternalArg } = parseArgs(process.argv.slice(2));
-  if (!input || !output) {
-    console.error(
-      'Usage: node scripts/migrateBasemaps.js --input <oldFormat.json> --output <migrated.json> [--resolve-wmts-as-external[=true|false]]'
-    );
-    process.exitCode = 1;
+  let input;
+  let output;
+  let resolveWmtsAsExternal;
+  try {
+    let resolveWmtsAsExternalArg;
+    ({ input, output, resolveWmtsAsExternal: resolveWmtsAsExternalArg } = parseArgs(process.argv.slice(2)));
+    if (!input || !output) {
+      failWithUsage();
+      return;
+    }
+    resolveWmtsAsExternal = resolveWmtsAsExternalArg ?? parseBooleanEnv('RESOLVE_WMTS_AS_EXTERNAL', false);
+  } catch (error) {
+    failWithUsage(error.message);
     return;
   }
 
-  const resolveWmtsAsExternal = resolveWmtsAsExternalArg ?? parseBooleanEnv(process.env.RESOLVE_WMTS_AS_EXTERNAL, false);
   const oldDocument = JSON.parse(fs.readFileSync(path.resolve(input), 'utf8'));
   const oldBasemaps = oldDocument.maps ?? [];
 

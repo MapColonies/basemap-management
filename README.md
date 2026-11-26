@@ -368,23 +368,25 @@ Requirements: Node.js 18 or newer (24 recommended), any OS and CPU architecture.
 | --- | --- |
 | `--input <file>`, `-i <file>`, `--input=<file>` | Old-format JSON (`{ "maps": [...] }`). Required. |
 | `--output <file>`, `-o <file>`, `--output=<file>` | Where to write `{ "basemaps": [...] }`. Required; overwritten if it exists. |
-| `--resolve-wmts-as-external` | Optional. Alone or followed by `true` = `true`; `--resolve-wmts-as-external false` or `--resolve-wmts-as-external=<value>` (`true`, case-insensitive; anything else is `false`) set it explicitly. |
-| `RESOLVE_WMTS_AS_EXTERNAL` env var | Used when the argument is not given (`true`, case-insensitive; anything else is `false`). Default `false`. The argument wins over the variable. |
+| `--resolve-wmts-as-external` | Optional. Alone (or followed by another option) means `true`. `--resolve-wmts-as-external <value>` or `--resolve-wmts-as-external=<value>` sets it explicitly; `<value>` must be `true` or `false`, case-insensitive - anything else is a usage error. |
+| `RESOLVE_WMTS_AS_EXTERNAL` env var | Used when the argument is not given: `true` or `false`, case-insensitive; unset or blank means `false`; anything else is a usage error. The argument wins over the variable (the variable is not checked then). |
 
 - `false` (default): WMTS layers become `CATALOG_RESOURCE` sources; `productId`/`productType` are parsed from the `{productId}-{productType}` URL segment before `{TileMatrixSet}`. If that fails they are left `null` (an unresolved catalog layer to fix in the UI) and a warning is printed.
 - `true`: WMTS layers become `EXTERNAL` sources, like XYZ layers.
+- `EXTERNAL` layers: `options.url` becomes `details.url`; every other option (WMTS `layer`/`style`/`format`/`tileMatrixSetID`, XYZ `maximumLevel`, ...) is kept unchanged under `details.extras`, the only place the schema keeps provider-specific keys.
+- A layer with a missing, non-string or blank `type` gets a warning naming its basemap and index; its basemap then fails validation and is left out (exit code `1`).
 
 ```bash
 node migrateBasemaps.js -i oldFormat.json -o migrated.json --resolve-wmts-as-external
 RESOLVE_WMTS_AS_EXTERNAL=true node migrateBasemaps.js -i oldFormat.json -o migrated.json
 ```
 
-Output: warnings (`warning: ...` - basemaps omitted for having no layers, unparsable WMTS URLs, unrecognized protocols, several `isCurrent` basemaps) and validation failures (`error: basemap "<name>" (<id>) failed schema validation ...` with one `  - <path>: <message>` line per issue) go to stderr; the summary `migrated <valid>/<total> basemaps (...) -> <output>` goes to stdout. Basemaps that fail validation are left out of the output file.
+Output: warnings (`warning: ...` - basemaps omitted for having no layers, unparsable WMTS URLs, unrecognized protocols, missing layer types, several `isCurrent` basemaps) and validation failures (`error: basemap "<name>" (<id>) failed schema validation ...` with one `  - <path>: <message>` line per issue) go to stderr; the summary `migrated <valid>/<total> basemaps (...) -> <output>` goes to stdout. Basemaps that fail validation are left out of the output file.
 
 | Exit code | Meaning |
 | --- | --- |
 | `0` | All basemaps with layers were migrated and are valid. |
-| `1` | Missing `--input`/`--output` (usage printed, nothing written), unreadable or invalid input JSON, or at least one basemap failed validation (the output file is still written with the valid ones). |
+| `1` | Missing `--input`/`--output` or an invalid `true`/`false` value (`error: ...` and usage printed, nothing written), unreadable or invalid input JSON, or at least one basemap failed validation (the output file is still written with the valid ones). |
 
 ## Testing
 

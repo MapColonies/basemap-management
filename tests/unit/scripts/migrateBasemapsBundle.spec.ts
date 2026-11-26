@@ -190,7 +190,7 @@ describe('standalone migration bundle', () => {
       });
       expect(findLayer(basemaps, 'xyz-streets')?.source).toMatchObject({
         type: 'EXTERNAL',
-        details: { protocol: 'XYZ', name: 'xyz-streets', url: 'https://tiles.example.com/streets/{z}/{x}/{y}.png' },
+        details: { protocol: 'XYZ', name: 'xyz-streets', url: 'https://tiles.example.com/streets/{z}/{x}/{y}.png', extras: { maximumLevel: 18 } },
       });
       expect(result.stdout).toContain('resolveWmtsAsExternal=false');
     });
@@ -200,7 +200,11 @@ describe('standalone migration bundle', () => {
 
       expect(findLayer(basemaps, 'wmts-orthophoto')?.source).toMatchObject({
         type: 'EXTERNAL',
-        details: { protocol: 'WMTS', name: 'wmts-orthophoto' },
+        details: {
+          protocol: 'WMTS',
+          name: 'wmts-orthophoto',
+          extras: { layer: 'CYPRUS_LOW_RES-Orthophoto', style: 'default', format: 'image/png', tileMatrixSetID: 'WorldCRS84' },
+        },
       });
     });
 
