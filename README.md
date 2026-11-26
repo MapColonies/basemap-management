@@ -333,7 +333,7 @@ This service owns the schema: `npm run generate:config-server-schema` (`scripts/
 
 ## Basemap migration utility
 
-`scripts/migrateBasemaps.js` converts basemaps from the old `{ "maps": [...] }` format into the `{ "basemaps": PersistedBasemap[] }` document stored in config-server. It is a standalone tool, not part of the service: it is not in the Docker image or the Helm chart.
+`scripts/migrateBasemaps.js` converts basemaps from the old `{ "maps": [...] }` format into the `{ "basemaps": PersistedBasemap[] }` document stored in config-server. It is a standalone tool, not part of the service: the service never loads it and the Helm chart doesn't reference it. Every BMM image carries a prebuilt copy for distribution, see [From a running BMM pod](#from-a-running-bmm-pod).
 
 Inside this repository (dependencies installed) run it directly: `npm run migrate:basemaps -- --input <old.json> --output <migrated.json>`. For machines without this repository, npm or internet access, build the standalone bundle.
 
@@ -348,7 +348,7 @@ This writes `dist/migration/migrateBasemaps.js` (~340 KiB) and `dist/migration/m
 
 - The build fails if anything other than a Node.js built-in module is still `require`d, so a built bundle is always standalone. The output is deterministic: the same lockfile gives a byte-identical file.
 - One unused module is left out: the 8.6 MB EPSG database behind `EPSGDATA` in `@map-colonies/types` (loaded by its index, never read by the migration). It is replaced by a stub that throws if read, so a future migration change that needs it fails loudly - remove it from `OMITTED_MODULES` in `scripts/buildMigrationBundle.js` in that case.
-- `npm run build` cleans `dist/`, including the bundle. The bundle is independent of the service build and is never released with it.
+- `npm run build` cleans `dist/`, including a locally built bundle. The bundle is built separately from the service: the [Dockerfile](Dockerfile) runs `npm run build:migration` as its own step (output outside `dist/`) and copies the result to `/opt/basemap-migration/` in the image.
 - **Rebuild** after any change to `scripts/migrateBasemaps.js` or to the `@map-colonies/app-shared` / `@map-colonies/types` / `zod` versions in `package-lock.json` (the schema is embedded, not loaded at run time).
 
 `tests/unit/scripts/migrateBasemapsBundle.spec.ts` builds the bundle, copies it alone to an empty temporary directory and checks that it gives the same output file, stdout, stderr and exit code as `scripts/migrateBasemaps.js` for every option form.
@@ -388,6 +388,53 @@ Output: warnings (`warning: ...` - basemaps omitted for having no layers, unpars
 | `0` | All basemaps with layers were migrated and are valid. |
 | `1` | Missing `--input`/`--output` or an invalid `true`/`false` value (`error: ...` and usage printed, nothing written), unreadable or invalid input JSON, or at least one basemap failed validation (the output file is still written with the valid ones). |
 
+### From a running BMM pod
+
+Every BMM image ships the bundle built from the same commit, so it reaches each environment with the matching BMM version - nothing to build or transfer separately:
+
+```text
+/opt/basemap-migration/migrateBasemaps.js
+/opt/basemap-migration/migrateBasemaps.js.sha256
+```
+
+The files are owned by root and readable/executable by any user, so they work under any runtime UID (including OpenShift's arbitrary UIDs) but can't be modified from the pod. The service never loads them.
+
+Find the pod (add `-n <namespace>`, and `-c <container>` to `exec`/`cp` if the pod has sidecars):
+
+```bash
+POD=$(kubectl get pods -l app.kubernetes.io/name=basemap-management -o jsonpath='{.items[0].metadata.name}')
+POD=$(oc get pods -l app.kubernetes.io/name=basemap-management -o jsonpath='{.items[0].metadata.name}')
+```
+
+Inspect and verify it:
+
+```bash
+kubectl exec "$POD" -- sh -c 'cd /opt/basemap-migration && ls -l && sha256sum -c migrateBasemaps.js.sha256'
+oc exec "$POD" -- sh -c 'cd /opt/basemap-migration && ls -l && sha256sum -c migrateBasemaps.js.sha256'
+```
+
+Run it in the pod (input and output in `/tmp`):
+
+```bash
+kubectl cp oldFormat.json "$POD":/tmp/oldFormat.json
+kubectl exec "$POD" -- node /opt/basemap-migration/migrateBasemaps.js -i /tmp/oldFormat.json -o /tmp/migrated.json
+kubectl cp "$POD":/tmp/migrated.json ./migrated.json
+
+oc cp oldFormat.json "$POD":/tmp/oldFormat.json
+oc exec "$POD" -- node /opt/basemap-migration/migrateBasemaps.js -i /tmp/oldFormat.json -o /tmp/migrated.json
+oc cp "$POD":/tmp/migrated.json ./migrated.json
+```
+
+Extract it to run elsewhere (it stays fully standalone - see [Run it in an isolated network](#run-it-in-an-isolated-network)):
+
+```bash
+kubectl cp "$POD":/opt/basemap-migration/ ./basemap-migration/
+oc cp "$POD":/opt/basemap-migration/ ./basemap-migration/
+cd basemap-migration && sha256sum -c migrateBasemaps.js.sha256
+```
+
+`kubectl cp` / `oc cp` need `tar` in the container (the alpine image has it); without it, `kubectl exec "$POD" -- cat /opt/basemap-migration/migrateBasemaps.js > migrateBasemaps.js` works too. If the pod's root filesystem is read-only (`readOnlyRootFilesystem`), `/tmp` isn't writable: use a writable mounted path, or extract the bundle and run it elsewhere.
+
 ## Testing
 
 Tests use [Vitest](https://vitest.dev/) with `supertest` and `jest-openapi` (responses are checked against `openapi3.yaml`). They need no external services: config-server, MapProxy and catalog are replaced by test doubles.
@@ -418,6 +465,8 @@ docker run --rm -p 8080:8080 \
 ```
 
 Drop `CONFIG_OFFLINE_MODE` when a `@map-colonies/config` server is available (`CONFIG_SERVER_URL`, etc.).
+
+The image also contains the standalone migration bundle in `/opt/basemap-migration/`, built by a separate `npm run build:migration` step; the service doesn't use it, see [From a running BMM pod](#from-a-running-bmm-pod).
 
 ### Helm
 
