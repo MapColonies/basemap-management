@@ -1,0 +1,94 @@
+{
+  "maps": [
+    {
+      "id": "bm-wmts-and-xyz",
+      "title": "WMTS and XYZ",
+      "isCurrent": true,
+      "thumbnail": "https://thumbnails.example.com/bm-wmts-and-xyz.png",
+      "baseRasterLayers": [
+        {
+          "id": "wmts-orthophoto",
+          "type": "WMTS_LAYER",
+          "opacity": 1,
+          "zIndex": 0,
+          "shouldBeUsedInModelDraping": true,
+          "options": {
+            "url": "https://raster.example.com/api/raster/v1/wmts/CYPRUS_LOW_RES-Orthophoto/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png",
+            "layer": "CYPRUS_LOW_RES-Orthophoto",
+            "style": "default",
+            "format": "image/png",
+            "tileMatrixSetID": "WorldCRS84"
+          }
+        },
+        {
+          "id": "xyz-streets",
+          "type": "XYZ_LAYER",
+          "opacity": 0.5,
+          "zIndex": 1,
+          "options": { "url": "https://tiles.example.com/streets/{z}/{x}/{y}.png", "maximumLevel": 18 }
+        }
+      ]
+    },
+    {
+      "id": "bm-wmts-unresolved",
+      "title": "WMTS with unparsable urls",
+      "isCurrent": true,
+      "thumbnail": "https://thumbnails.example.com/bm-wmts-unresolved.png",
+      "baseRasterLayers": [
+        {
+          "id": "wmts-no-token",
+          "type": "WMTS",
+          "opacity": 1,
+          "zIndex": 0,
+          "options": { "url": "https://raster.example.com/wmts/SOME_LAYER/tile.png" }
+        },
+        {
+          "id": "wmts-no-product-type",
+          "type": "WMTS_LAYER",
+          "opacity": 1,
+          "zIndex": 1,
+          "options": { "url": "https://raster.example.com/wmts/NO_DASH/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png" }
+        }
+      ]
+    },
+    {
+      "id": "bm-unknown-protocol",
+      "title": "Unknown protocol",
+      "thumbnail": "https://thumbnails.example.com/bm-unknown-protocol.png",
+      "baseRasterLayers": [
+        {
+          "id": "mystery-layer",
+          "type": "MYSTERY_LAYER",
+          "opacity": 1,
+          "zIndex": 0,
+          "options": { "url": "https://mystery.example.com/{z}/{x}/{y}" }
+        }
+      ]
+    },
+    {
+      "id": "bm-empty",
+      "title": "Empty layers",
+      "thumbnail": "https://thumbnails.example.com/bm-empty.png",
+      "baseRasterLayers": []
+    },
+    {
+      "id": "bm-missing-layers",
+      "title": "Missing layers",
+      "thumbnail": "https://thumbnails.example.com/bm-missing-layers.png"
+    },
+    {
+      "id": "bm-invalid",
+      "title": "Invalid after migration",
+      "thumbnail": "",
+      "baseRasterLayers": [
+        {
+          "id": "xyz-bad-opacity",
+          "type": "XYZ_LAYER",
+          "opacity": 2,
+          "zIndex": -1,
+          "options": { "url": "https://tiles.example.com/bad/{z}/{x}/{y}.png" }
+        }
+      ]
+    }
+  ]
+}
