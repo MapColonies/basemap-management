@@ -4,7 +4,7 @@ info:
   description: >-
     Persistence and domain operations for Basemaps (ordered compositions of map
     layers) consumed by the MapColonies Main App and other REST clients.
-  version: 1.1.0
+  version: 1.1.1
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
