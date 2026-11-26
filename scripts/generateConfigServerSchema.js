@@ -2,7 +2,7 @@
 /**
  * Generates the JSON Schema for `IConfigServerDocument` (`{ basemaps: PersistedBasemap[] }`),
  * derived from `PersistedBasemapSchema` in `@map-colonies/app-shared` - the same zod schema that
- * validates basemaps at runtime - so the generated schema can't drift from actual validation.
+ * validates basemaps at runtime.
  *
  * Usage:
  *   node scripts/generateConfigServerSchema.js [--output <schema.json>] [--schema-id <uri>]

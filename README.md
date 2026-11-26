@@ -9,6 +9,7 @@ The service owns Basemap *configuration* only. It stores no tiles and no raster 
 - [Configuration](#configuration)
 - [API](#api)
 - [Data models](#data-models)
+- [Basemap migration utility](#basemap-migration-utility)
 - [Testing](#testing)
 - [Build and deployment](#build-and-deployment)
 - [Development notes](#development-notes)
@@ -97,6 +98,8 @@ Then open the Swagger UI at <http://localhost:8080/docs/api/> (raw spec: `/docs/
 | `npm run build` | Clean, regenerate OpenAPI types, compile to `dist/`, copy assets |
 | `npm run generate:openapi-types` | Regenerate `src/openapi.d.ts` from `openapi3.yaml`. Run after any OpenAPI change. |
 | `npm run generate:config-server-schema` | Regenerate the config-server JSON Schema `schemas/v1.schema.json` from the Zod schemas (`node scripts/generateConfigServerSchema.js [--output <file>] [--schema-id <uri>]`; invalid arguments exit with code `2`), see [Config-server schema](#config-server-schema) |
+| `npm run migrate:basemaps -- --input <old.json> --output <new.json>` | Migrate old-format basemaps, see [Basemap migration utility](#basemap-migration-utility) |
+| `npm run build:migration` | Build the standalone migration bundle `dist/migration/migrateBasemaps.js` (Node.js only, no npm packages needed to run it) |
 | `npm run lint` / `lint:fix` | ESLint (runs Prettier check/fix first) |
 | `npm run format` / `format:fix` | Prettier check / write |
 | `npm run lint:openapi` | Lint `openapi3.yaml` with Redocly |
@@ -327,6 +330,61 @@ This service owns the schema: `npm run generate:config-server-schema` (`scripts/
 - **Versioning:** a released schema file must not change (the `schemas` repository enforces this). If the persisted model changes after `v1` is released, bump the version in `configServer.schemaId` (`config/default.json`) and `helm/values.yaml`, change the output file name (`DEFAULT_OUTPUT` in `scripts/generateConfigServerSchema.js`) to match, and add the new file to `schemas`. config-server keeps configs per `schemaId`: the `basemaps` document stored under `v1` is not returned for `v2`, so the switch needs a migration step (write the current document, converted, as version 1 under the new `schemaId`). A config name cannot move to a schema with a different path, only to a new version of the same one.
 - **Cross-item rule added by the generator** (Zod refinements are not translated by `zod-to-json-schema`): `allOf` on `basemaps`, one `{ contains: { type: "object", properties: { isCurrent|isForPreview: { const: true } }, required: [...] }, minContains: 0, maxContains: 1 }` branch per flag - at most one owner each, independently; zero owners, an empty list and one basemap holding both flags are valid. It uses only standard draft 2019-09 keywords, so it compiles in config-server's Ajv (`ajv/dist/2019`, strict mode) and the `schemas` repository's `npm run validate` without warnings.
 - **Not in the schema:** rules JSON Schema cannot express - Zod refinements (non-blank `name`, `thumbnail.url`, external `details.name` / `details.url`) and uniqueness by property (Basemap ids, layer ids, layer orders; `uniqueItems` compares whole items, and keywords such as ajv-keywords' `uniqueItemProperties` are not registered by config-server). They are enforced only by this service; a document written directly to config-server that breaks them is accepted there and handled as described in [Stored-document invariants](#stored-document-invariants).
+
+## Basemap migration utility
+
+`scripts/migrateBasemaps.js` converts basemaps from the old `{ "maps": [...] }` format into the `{ "basemaps": PersistedBasemap[] }` document stored in config-server. It is a standalone tool, not part of the service: it is not in the Docker image or the Helm chart.
+
+Inside this repository (dependencies installed) run it directly: `npm run migrate:basemaps -- --input <old.json> --output <migrated.json>`. For machines without this repository, npm or internet access, build the standalone bundle.
+
+### Build the standalone bundle
+
+```bash
+npm ci                    # once, in this repository
+npm run build:migration
+```
+
+This writes `dist/migration/migrateBasemaps.js` (~340 KiB) and `dist/migration/migrateBasemaps.js.sha256`. The bundle is `scripts/migrateBasemaps.js`, unchanged, plus everything it loads at runtime - `@map-colonies/app-shared` (the real `PersistedBasemapSchema`), `@map-colonies/types`, `zod`, `mime-types` and `mime-db` - in one CommonJS file built by [`rolldown`](https://rolldown.rs/) (`scripts/buildMigrationBundle.js`). Its header lists the bundled package versions; their license texts are appended at the end of the file.
+
+- The build fails if anything other than a Node.js built-in module is still `require`d, so a built bundle is always standalone. The output is deterministic: the same lockfile gives a byte-identical file.
+- One unused module is left out: the 8.6 MB EPSG database behind `EPSGDATA` in `@map-colonies/types` (loaded by its index, never read by the migration). It is replaced by a stub that throws if read, so a future migration change that needs it fails loudly - remove it from `OMITTED_MODULES` in `scripts/buildMigrationBundle.js` in that case.
+- `npm run build` cleans `dist/`, including the bundle. The bundle is independent of the service build and is never released with it.
+- **Rebuild** after any change to `scripts/migrateBasemaps.js` or to the `@map-colonies/app-shared` / `@map-colonies/types` / `zod` versions in `package-lock.json` (the schema is embedded, not loaded at run time).
+
+`tests/unit/scripts/migrateBasemapsBundle.spec.ts` builds the bundle, copies it alone to an empty temporary directory and checks that it gives the same output file, stdout, stderr and exit code as `scripts/migrateBasemaps.js` for every option form.
+
+### Run it in an isolated network
+
+Requirements: Node.js 18 or newer (24 recommended), any OS and CPU architecture. Nothing else: no `npm install`, no `node_modules`, no network access.
+
+1. Copy `migrateBasemaps.js` (and optionally `migrateBasemaps.js.sha256`) to the target machine. Check it with `sha256sum -c migrateBasemaps.js.sha256`.
+2. Run:
+
+   ```bash
+   node migrateBasemaps.js --input oldFormat.json --output migrated.json
+   ```
+
+| Argument | Meaning |
+| --- | --- |
+| `--input <file>`, `-i <file>`, `--input=<file>` | Old-format JSON (`{ "maps": [...] }`). Required. |
+| `--output <file>`, `-o <file>`, `--output=<file>` | Where to write `{ "basemaps": [...] }`. Required; overwritten if it exists. |
+| `--resolve-wmts-as-external` | Optional. Alone or followed by `true` = `true`; `--resolve-wmts-as-external false` or `--resolve-wmts-as-external=<value>` (`true`, case-insensitive; anything else is `false`) set it explicitly. |
+| `RESOLVE_WMTS_AS_EXTERNAL` env var | Used when the argument is not given (`true`, case-insensitive; anything else is `false`). Default `false`. The argument wins over the variable. |
+
+- `false` (default): WMTS layers become `CATALOG_RESOURCE` sources; `productId`/`productType` are parsed from the `{productId}-{productType}` URL segment before `{TileMatrixSet}`. If that fails they are left `null` (an unresolved catalog layer to fix in the UI) and a warning is printed.
+- `true`: WMTS layers become `EXTERNAL` sources, like XYZ layers.
+
+```bash
+node migrateBasemaps.js -i oldFormat.json -o migrated.json --resolve-wmts-as-external
+RESOLVE_WMTS_AS_EXTERNAL=true node migrateBasemaps.js -i oldFormat.json -o migrated.json
+```
+
+Output: warnings (`warning: ...` - basemaps omitted for having no layers, unparsable WMTS URLs, unrecognized protocols, several `isCurrent` basemaps) and validation failures (`error: basemap "<name>" (<id>) failed schema validation ...` with one `  - <path>: <message>` line per issue) go to stderr; the summary `migrated <valid>/<total> basemaps (...) -> <output>` goes to stdout. Basemaps that fail validation are left out of the output file.
+
+| Exit code | Meaning |
+| --- | --- |
+| `0` | All basemaps with layers were migrated and are valid. |
+| `1` | Missing `--input`/`--output` (usage printed, nothing written), unreadable or invalid input JSON, or at least one basemap failed validation (the output file is still written with the valid ones). |
 
 ## Testing
 
