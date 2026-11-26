@@ -165,6 +165,34 @@ describe('standalone migration bundle', () => {
       expect(bundle.stderr).toBe('');
     });
 
+    it('should skip malformed legacy entries the same way', () => {
+      const malformed = path.join(tempRoot, 'malformed.json');
+      const { maps } = JSON.parse(readFileSync(FIXTURE, 'utf8')) as { maps: { id: string; baseRasterLayers?: unknown[] }[] };
+      const valid = maps
+        .filter((map) => map.id === 'bm-wmts-and-xyz')
+        .map((map) => ({ ...map, baseRasterLayers: [null, 'x', [], ...(map.baseRasterLayers ?? [])] }));
+      writeFileSync(malformed, JSON.stringify({ maps: [null, 5, [], { id: 'bm-bad-layers', title: 'Bad', baseRasterLayers: 'x' }, ...valid] }));
+
+      const { source, bundle } = runBoth(['-i', INPUT, '-o', OUTPUT], undefined, malformed);
+
+      expect(bundle).toEqual(source);
+      expect(bundle.status).toBe(0);
+      expect(bundle.stderr).toContain('warning: maps[0] is null, not a basemap object - skipped');
+      expect(bundle.stderr).toContain('baseRasterLayers[0] is null, not a layer object - skipped');
+      expect(parseOutput(bundle).map((basemap) => basemap.id)).toEqual(['bm-wmts-and-xyz']);
+    });
+
+    it('should reject a malformed input document the same way', () => {
+      const notAnObject = path.join(tempRoot, 'not-an-object.json');
+      writeFileSync(notAnObject, 'null');
+
+      const { source, bundle } = runBoth(['-i', INPUT, '-o', OUTPUT], undefined, notAnObject);
+
+      expect(bundle).toEqual(source);
+      expect(bundle.status).toBe(1);
+      expect(bundle.output).toBeUndefined();
+    });
+
     it('should fail the same way on an unparsable input file', () => {
       const broken = path.join(tempRoot, 'broken.json');
       writeFileSync(broken, '{ "maps": [');

@@ -28,13 +28,13 @@ function oldLayer(overrides: OldLayer): OldLayer {
   return { id: 'layer', type: 'XYZ_LAYER', opacity: 1, zIndex: 0, options: { url: 'https://tiles.example.com/{z}/{x}/{y}.png' }, ...overrides };
 }
 
-function oldBasemap(id: string, layers: OldLayer[]): Record<string, unknown> {
+function oldBasemap(id: string, layers: unknown[]): Record<string, unknown> {
   return { id, title: `Title ${id}`, thumbnail: THUMBNAIL, baseRasterLayers: layers };
 }
 
-function run(maps: unknown[], args: string[] = [], env: Record<string, string> = {}): IRunResult {
+function run(maps: unknown, args: string[] = [], env: Record<string, string> = {}, document: unknown = { maps }): IRunResult {
   const cwd = mkdtempSync(path.join(tempRoot, 'run-'));
-  writeFileSync(path.join(cwd, INPUT), JSON.stringify({ maps }));
+  writeFileSync(path.join(cwd, INPUT), JSON.stringify(document));
   const result = spawnSync(process.execPath, [SCRIPT, '-i', INPUT, '-o', OUTPUT, ...args], {
     cwd,
     encoding: 'utf8',
@@ -212,6 +212,115 @@ describe('scripts/migrateBasemaps.js', () => {
 
       expect(result.status).toBe(0);
       expect(result.stderr).toBe('warning: layer "mystery" has unrecognized protocol "MYSTERY"\n');
+    });
+  });
+
+  describe('malformed legacy entries', () => {
+    it.each([
+      { name: 'null', entry: null, description: 'null' },
+      { name: 'a string', entry: 'layer', description: 'a string ("layer")' },
+      { name: 'a number', entry: 7, description: 'a number (7)' },
+      { name: 'a boolean', entry: true, description: 'a boolean (true)' },
+      { name: 'an array', entry: [oldLayer({ id: 'nested' })], description: 'an array' },
+    ])('should warn about and skip a layer entry that is $name, migrating the rest', ({ entry, description }) => {
+      const maps = [oldBasemap('bm-mixed', [oldLayer({ id: 'first' }), entry, oldLayer({ id: 'last', zIndex: 2 })])];
+
+      const result = run(maps);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe(
+        `warning: basemap "Title bm-mixed" (bm-mixed), baseRasterLayers[1] is ${description}, not a layer object - skipped\n`
+      );
+      expect(result.basemaps?.[0]?.layers.map((layer) => layer.id)).toEqual(['first', 'last']);
+      expect(result.stdout).toContain('migrated 1/1 basemaps');
+    });
+
+    it('should omit a basemap whose layer entries are all malformed', () => {
+      const maps = [oldBasemap('bm-all-bad', [null, 3]), oldBasemap('bm-ok', [oldLayer({})])];
+
+      const result = run(maps);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain(
+        'warning: basemap "Title bm-all-bad" (bm-all-bad), baseRasterLayers[0] is null, not a layer object - skipped\n'
+      );
+      expect(result.stderr).toContain(
+        'warning: basemap "Title bm-all-bad" (bm-all-bad), baseRasterLayers[1] is a number (3), not a layer object - skipped\n'
+      );
+      expect(result.stderr).toContain('warning: basemap "Title bm-all-bad" (bm-all-bad) has no baseRasterLayers - omitted from output\n');
+      expect(result.basemaps?.map((basemap) => basemap.id)).toEqual(['bm-ok']);
+      expect(result.stdout).toContain('migrated 1/2 basemaps (1 omitted for having no baseRasterLayers');
+    });
+
+    it.each([
+      { name: 'an object', layers: { 0: oldLayer({}) }, description: 'an object' },
+      { name: 'a string', layers: 'layers', description: 'a string ("layers")' },
+    ])('should treat baseRasterLayers that are $name as empty', ({ layers }) => {
+      const maps = [{ ...oldBasemap('bm-weird', []), baseRasterLayers: layers }, oldBasemap('bm-ok', [oldLayer({})])];
+
+      const result = run(maps);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain(`warning: basemap "Title bm-weird" (bm-weird) has baseRasterLayers that are `);
+      expect(result.stderr).toContain('not an array - treated as empty\n');
+      expect(result.stderr).toContain('warning: basemap "Title bm-weird" (bm-weird) has no baseRasterLayers - omitted from output\n');
+      expect(result.basemaps?.map((basemap) => basemap.id)).toEqual(['bm-ok']);
+    });
+
+    it.each([
+      { name: 'null', entry: null, description: 'null' },
+      { name: 'a string', entry: 'bm', description: 'a string ("bm")' },
+      { name: 'an array', entry: [], description: 'an array' },
+    ])('should warn about and skip a maps entry that is $name', ({ entry, description }) => {
+      const result = run([entry, oldBasemap('bm-ok', [oldLayer({})])]);
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toBe(`warning: maps[0] is ${description}, not a basemap object - skipped\n`);
+      expect(result.basemaps?.map((basemap) => basemap.id)).toEqual(['bm-ok']);
+      expect(result.stdout).toContain('migrated 1/2 basemaps');
+    });
+
+    it.each([
+      { name: 'null', document: null },
+      { name: 'an array', document: [] },
+      { name: 'a string', document: 'maps' },
+      { name: 'an object with non-array maps', document: { maps: { id: 'bm' } } },
+    ])('should reject an input document that is $name and write nothing', ({ document }) => {
+      const result = run(undefined, [], {}, document);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toBe(`error: ${INPUT} must contain a JSON object with a "maps" array\n`);
+      expect(result.stdout).toBe('');
+      expect(result.basemaps).toBeUndefined();
+    });
+
+    it.each([
+      {
+        name: 'a string',
+        options: 'https://tiles.example.com/{z}/{x}/{y}.png',
+        description: 'a string ("https://tiles.example.com/{z}/{x}/{y}.png")',
+      },
+      { name: 'an array', options: ['a'], description: 'an array' },
+    ])('should ignore layer options that are $name instead of spreading them into extras', ({ options, description }) => {
+      const result = run([oldBasemap('bm-bad-options', [oldLayer({ id: 'bad-options', options })])]);
+
+      expect(result.stderr).toContain(
+        `warning: layer "bad-options" (basemap "Title bm-bad-options" (bm-bad-options), baseRasterLayers[0]) has options that are ${description}, not an object - ignored\n`
+      );
+      expect(result.stderr).not.toContain('extras');
+      expect(result.basemaps).toEqual([]);
+      expect(result.status).toBe(1);
+    });
+
+    it.each([
+      { name: 'a non-string url', url: 42 },
+      { name: 'a url with malformed percent-encoding', url: 'https://raster.example.com/wmts/%E0%A4%A/{TileMatrixSet}/x.png' },
+    ])('should leave a WMTS layer with $name unresolved instead of crashing', ({ url }) => {
+      const result = run([oldBasemap('bm-wmts-bad-url', [oldLayer({ id: 'wmts', type: 'WMTS_LAYER', options: { url } })])]);
+
+      expect(result.stderr).not.toContain('TypeError');
+      expect(result.stderr).not.toContain('URIError');
+      expect(result.stdout).toContain('migrated');
     });
   });
 });

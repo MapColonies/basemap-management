@@ -381,7 +381,7 @@ node migrateBasemaps.js -i oldFormat.json -o migrated.json --resolve-wmts-as-ext
 RESOLVE_WMTS_AS_EXTERNAL=true node migrateBasemaps.js -i oldFormat.json -o migrated.json
 ```
 
-Output: warnings (`warning: ...` - basemaps omitted for having no layers, unparsable WMTS URLs, unrecognized protocols, missing layer types, several `isCurrent` basemaps) and validation failures (`error: basemap "<name>" (<id>) failed schema validation ...` with one `  - <path>: <message>` line per issue) go to stderr; the summary `migrated <valid>/<total> basemaps (...) -> <output>` goes to stdout. Basemaps that fail validation are left out of the output file.
+Output: warnings (`warning: ...` - basemaps omitted for having no layers, unparsable WMTS URLs, unrecognized protocols, missing layer types, several `isCurrent` basemaps, malformed `maps`/`baseRasterLayers` entries or `options` that are skipped or ignored) and validation failures (`error: basemap "<name>" (<id>) failed schema validation ...` with one `  - <path>: <message>` line per issue) go to stderr; the summary `migrated <valid>/<total> basemaps (...) -> <output>` goes to stdout. An input that isn't a JSON object with a `maps` array is rejected (`error: ...`, exit code `1`, nothing written). Basemaps that fail validation are left out of the output file.
 
 | Exit code | Meaning |
 | --- | --- |
