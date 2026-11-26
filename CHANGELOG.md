@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/MapColonies/basemap-management/compare/v1.1.0...v1.1.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* migration bundle (MAPCO-11724) ([#52](https://github.com/MapColonies/basemap-management/issues/52)) ([adc3182](https://github.com/MapColonies/basemap-management/commit/adc318227653fdcf2f257bc433831ef54389ef8f))
+
 ## [1.1.0](https://github.com/MapColonies/basemap-management/compare/v1.0.0...v1.1.0) (2026-11-26)
 
 
