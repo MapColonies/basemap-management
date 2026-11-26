@@ -4,7 +4,7 @@ info:
   description: >-
     Persistence and domain operations for Basemaps (ordered compositions of map
     layers) consumed by the MapColonies Main App and other REST clients.
-  version: 1.0.0
+  version: 1.1.0
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -188,8 +188,8 @@ components:
       type: object
       description: >-
         A persisted thumbnail reference. The binary image itself lives in
-        data-service (uploaded via catalog-web-app-bff); only its URL is part
-        of the Basemap configuration.
+        data-service (uploaded via catalog-web-app-bff); only its URL is part of
+        the Basemap configuration.
       required:
         - url
         - width
@@ -212,8 +212,8 @@ components:
         Serving protocol of an external layer. The supported values come from
         the shared imagery protocol list (`WMS`, `WMTS`, `XYZ`, `OSM`,
         `MAPBOX_STYLE`, `BING_MAPS`) and are enforced by the service at
-        request-validation time; the schema stays an open string so the list
-        can grow in `@map-colonies/types` without a spec change.
+        request-validation time; the schema stays an open string so the list can
+        grow in `@map-colonies/types` without a spec change.
     externalLayerDetails:
       type: object
       description: >
@@ -235,8 +235,8 @@ components:
         extras:
           type: object
           description: >-
-            Provider-specific extra fields not covered by
-            protocol/name/url (e.g. WMTS/XYZ options)
+            Provider-specific extra fields not covered by protocol/name/url
+            (e.g. WMTS/XYZ options)
           properties: {}
           additionalProperties: true
     externalLayerSource:
@@ -299,8 +299,7 @@ components:
     capability:
       type: object
       nullable: true
-      description: >-
-        MapProxy WMTS capability of a catalog layer.
+      description: MapProxy WMTS capability of a catalog layer.
       required:
         - id
       properties:
@@ -356,7 +355,8 @@ components:
       type: object
       nullable: true
       description: >-
-        The resolved catalog layer record (its product reference; all other record fields pass through).
+        The resolved catalog layer record (its product reference; all other
+        record fields pass through).
       properties:
         productId:
           type: string
@@ -422,8 +422,7 @@ components:
         details:
           $ref: '#/components/schemas/externalLayerDetails'
     basemapLayerSourceInput:
-      description: >-
-        A Basemap layer's source, as accepted by POST/PUT.
+      description: A Basemap layer's source, as accepted by POST/PUT.
       oneOf:
         - $ref: '#/components/schemas/catalogResourceLayerSource'
         - $ref: '#/components/schemas/externalLayerSource'
@@ -550,7 +549,8 @@ components:
       description: >
         One layer of an imported package, resolved against this environment
         exactly like a GET. A catalog source with status UNRESOLVED carries the
-        dangling reference the user must resolve/replace or remove before saving.
+        dangling reference the user must resolve/replace or remove before
+        saving.
       allOf:
         - $ref: '#/components/schemas/basemapLayerOutput'
     importReviewRoleConflict:
